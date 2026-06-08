@@ -3,5 +3,5 @@ from .consumers import SalaConsumer
 
 
 websocket_urlpatterns = [
-    re_path(r'ws/chat/sala/$', SalaConsumer.as_asgi()),
+    re_path(r'ws/v1/chat/sala/$', SalaConsumer.as_asgi()),
 ]

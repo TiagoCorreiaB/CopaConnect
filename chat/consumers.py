@@ -4,13 +4,89 @@ from channels.db import database_sync_to_async
 from djangochannelsrestframework.generics import GenericAsyncAPIConsumer
 from djangochannelsrestframework.observer import model_observer
 from djangochannelsrestframework.observer.generics import ObserverModelInstanceMixin, action
+from djangochannelsrestframework.mixins import CreateModelMixin, ListModelMixin
 
 from .models import Sala, Comentario
 from usuarios.models import Usuario
 from .serializers import ComentarioSerializer, SalaSerializer
 from usuarios.serializers import UsuarioSerializer
 
-class SalaConsumer(ObserverModelInstanceMixin, GenericAsyncAPIConsumer):
+class SalaConsumer(ListModelMixin, CreateModelMixin, ObserverModelInstanceMixin, GenericAsyncAPIConsumer):
     queryset = Sala.objects.all()
     serializer_class = SalaSerializer
-    lookup_field = "id"
+    lookup_field = 'pk'
+
+    @action()
+    async def criar(self, data: dict, request_id: str, **kwargs):
+        response, status = await super().create(data, **kwargs)
+        sala_pk = response['pk']
+        await self.entrar(pk=sala_pk, request_id=request_id)
+        return response, status
+    
+    @action()
+    async def entrar(self, pk, request_id, **kwargs):
+        sala = await database_sync_to_async(self.get_object)(pk=pk)
+        await self.subscribe_instance(request_id=request_id, pk=sala.pk)
+        await self.atividade_comentario.subscribe(sala=pk, request_id=request_id)
+        if self.scope['user'].is_authenticated:
+            await self.adicionar(sala)
+
+    @action()
+    async def sair(self, pk, **kwargs):
+        sala = await database_sync_to_async(self.get_object)(pk=pk)
+        if self.scope['user'].is_authenticated:
+            await self.remover(sala)
+        await self.unsubscribe_instance(pk=sala.pk)
+        await self.atividade_comentario.unsubscribe(sala=sala.pk)
+
+    @database_sync_to_async
+    def adicionar(self, sala: Sala):
+        usuario = Usuario.objects.get(pk=self.scope['user'].pk)
+        sala.usuarios.add(usuario)
+
+    @database_sync_to_async
+    def remover(self, sala: Sala):
+        usuario = Usuario.objects.get(pk=self.scope['user'].pk)
+        sala.usuarios.remove(usuario)
+
+    @action()
+    async def criar_comentario(self, comentario, sala, **kwargs):
+        if not self.scope['user'].is_authenticated:
+            return
+        sala: Sala = await database_sync_to_async(self.get_object)(pk=sala)
+        usuario = await database_sync_to_async(Usuario.objects.get)(pk=self.scope['user'].pk)
+        await database_sync_to_async(Comentario.objects.create)(
+            sala=sala,
+            usuario=usuario,
+            texto=comentario
+        )
+
+    @model_observer(Comentario)
+    async def atividade_comentario(
+        self,
+        comentario,
+        observer=None,
+        subscribing_request_ids=[],
+        **kwargs
+    ):
+        for request_id in subscribing_request_ids:
+            texto_comentario = dict(request_id=request_id)
+            texto_comentario.update(comentario)
+            await self.send_json(texto_comentario)
+
+    @atividade_comentario.groups_for_signal
+    def atividade_comentario(self, instance: Comentario, **kwargs):
+        yield f'sala__{instance.sala_id}'
+
+    @atividade_comentario.groups_for_consumer
+    def atividade_comentario(self, sala=None, **kwargs):
+        if sala is not None:
+            yield f'sala__{sala}'
+
+    @atividade_comentario.serializer
+    def atividade_comentario(self, comentario: Comentario, acao, **kwargs):
+        return dict(
+            dados=ComentarioSerializer(comentario).data,
+            acao=acao.value,
+            pk=comentario.pk
+        )

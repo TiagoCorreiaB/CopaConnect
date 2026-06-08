@@ -21,9 +21,12 @@ class SalaSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Sala
-        fields = ["id", "nome", "comentarios", "usuarios", "ultimo_comentario"]
+        fields = ["pk", "nome", "comentarios", "usuarios", "ultimo_comentario"]
         depth = 1
         read_only_fields = ["comentarios", "ultimo_comentario"]
 
     def get_ultimo_comentario(self, obj:Sala):
-        return ComentarioSerializer(obj.comentarios.order_by('data_envio').last()).data
+        ultimo = obj.comentarios.order_by('data_envio').last()
+        if ultimo is None:
+            return None
+        return ComentarioSerializer(ultimo).data
