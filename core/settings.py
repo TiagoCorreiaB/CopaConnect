@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'bolao',
     'chat',
     'usuarios',
+    'partidas',
 ]
 
 MIDDLEWARE = [
