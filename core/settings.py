@@ -50,6 +50,8 @@ INSTALLED_APPS = [
     'chat',
     'usuarios',
     'partidas',
+    'django_celery_results',
+    'django_celery_beat',
 ]
 
 MIDDLEWARE = [
@@ -135,3 +137,7 @@ CHANNEL_LAYERS = {
         "BACKEND": "channels.layers.InMemoryChannelLayer",
     },
 }
+
+CELERY_BROKER_URL = 'pyamqp://guest@localhost//'
+CELERY_TIMEZONE = 'America/Bahia'
+CELERY_RESULT_BACKEND = 'django-db'
