@@ -16,11 +16,24 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from rest_framework import routers
 
-api_v1_urls = [
-]
+from partidas.views import PartidaViewSet
+
+class ApiRootView(routers.APIRootView):
+    """
+    Abaixo você encontra todos os endpoints disponíveis para consumo.
+    """
+    def get_view_name(self):
+        return 'API Copa Connect'
+
+class MeuRouter(routers.DefaultRouter):
+    APIRootView = ApiRootView
+
+router = MeuRouter()
+router.register(r'partidas', PartidaViewSet, basename='partida')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/v1/', include(api_v1_urls)),
+    path('api/copaconnect/v1/', include(router.urls)),
 ]

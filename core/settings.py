@@ -45,10 +45,12 @@ INSTALLED_APPS = [
     'channels',
     'rest_framework',
     'notificacao',
-    'dashboard',
     'bolao',
     'chat',
     'usuarios',
+    'partidas',
+    'django_celery_results',
+    'django_celery_beat',
 ]
 
 MIDDLEWARE = [
@@ -132,5 +134,15 @@ STATIC_URL = 'static/'
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels.layers.InMemoryChannelLayer",
+    },
+}
+
+CELERY_BROKER_URL = 'pyamqp://guest@localhost//'
+CELERY_TIMEZONE = 'America/Bahia'
+CELERY_RESULT_BACKEND = 'django-db'
+CELERY_BEAT_SCHEDULE = {
+    'atualizar-partidas-ao-vivo': {
+        'task': 'partidas.atualizar_partidas_ao_vivo',
+        'schedule': 120.0,
     },
 }
