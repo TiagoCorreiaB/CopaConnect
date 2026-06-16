@@ -35,5 +35,5 @@ router.register(r'partidas', PartidaViewSet, basename='partida')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/v1/', include(router.urls)),
+    path('api/copaconnect/v1/', include(router.urls)),
 ]

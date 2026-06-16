@@ -45,7 +45,6 @@ INSTALLED_APPS = [
     'channels',
     'rest_framework',
     'notificacao',
-    'dashboard',
     'bolao',
     'chat',
     'usuarios',
@@ -141,3 +140,9 @@ CHANNEL_LAYERS = {
 CELERY_BROKER_URL = 'pyamqp://guest@localhost//'
 CELERY_TIMEZONE = 'America/Bahia'
 CELERY_RESULT_BACKEND = 'django-db'
+CELERY_BEAT_SCHEDULE = {
+    'atualizar-partidas-ao-vivo': {
+        'task': 'partidas.atualizar_partidas_ao_vivo',
+        'schedule': 120.0,
+    },
+}
