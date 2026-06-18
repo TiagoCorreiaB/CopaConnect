@@ -19,6 +19,7 @@ from django.urls import path, include
 from rest_framework import routers
 
 from partidas.views import PartidaViewSet
+from bolao.views import BolaoViewSet, PalpiteViewSet, PontuacaoViewSet
 
 class ApiRootView(routers.APIRootView):
     """
@@ -32,6 +33,9 @@ class MeuRouter(routers.DefaultRouter):
 
 router = MeuRouter()
 router.register(r'partidas', PartidaViewSet, basename='partida')
+router.register(r'boloes', BolaoViewSet, basename='bolao')
+router.register(r'palpites', PalpiteViewSet, basename='palpites')
+router.register(r'pontuacoes', PontuacaoViewSet, basename='pontuacao')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
