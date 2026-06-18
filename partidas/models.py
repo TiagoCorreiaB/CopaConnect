@@ -23,3 +23,6 @@ class Partida(models.Model):
     tempo = models.CharField(max_length=10, null=True, blank=True)
     fase = models.CharField(max_length=50)
     estatisticas_finais = models.JSONField(null=True, blank=True)
+
+    def __str__(self):
+        return self.time_1 + " x " + self.time_2
