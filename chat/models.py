@@ -1,5 +1,6 @@
 from django.db import models
 from usuarios.models import Usuario
+from partidas.models import Partida
 
 class Sala(models.Model):
     class Status(models.TextChoices):
@@ -14,12 +15,13 @@ class Sala(models.Model):
         default=Status.ABERTA
     )
     usuarios = models.ManyToManyField(Usuario, related_name='salas', blank=True)
+    partida = models.ForeignKey(Partida, related_name='salas')
 
     def __str__(self):
         return f'Sala {self.nome}'
     
 class Comentario(models.Model):
-    sala = models.ForeignKey('chat.Sala', on_delete=models.CASCADE, related_name='comentarios')
+    sala = models.ForeignKey(Sala, on_delete=models.CASCADE, related_name='comentarios')
     texto = models.TextField(max_length=200)
     usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='comentarios')
     data_envio = models.DateTimeField(auto_now_add=True)
