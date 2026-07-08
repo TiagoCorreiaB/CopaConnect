@@ -25,9 +25,13 @@ class Bolao(models.Model):
     )
     usuarios = models.ManyToManyField(Usuario, related_name='boloes', blank=True)
 
+    class Meta:
+        verbose_name = "Bolão"
+        verbose_name_plural = "Bolões"
+
     def __str__(self):
         return self.nome
-
+    
 class Palpite(models.Model):
     placar_1 = models.IntegerField()
     placar_2 = models.IntegerField()
@@ -38,5 +42,9 @@ class Palpite(models.Model):
     pontuacao = models.IntegerField(null=True, blank=True)
     valor_pontuacao = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     
+    class Meta:
+        verbose_name = "Palpite"
+        verbose_name_plural = "Palpites"
+
     def __str__(self):
         return f'{self.placar_1}  X  {self.placar_2}'
