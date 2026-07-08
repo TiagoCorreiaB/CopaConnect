@@ -35,14 +35,8 @@ class Palpite(models.Model):
     data = models.DateTimeField(auto_now_add=True)
     usuario = models.ForeignKey(Usuario, related_name='palpites', on_delete=models.CASCADE)
     bolao = models.ForeignKey(Bolao, related_name='palpites', on_delete=models.CASCADE)
-
-    def __str__(self):
-        return f'{self.placar_1}  X  {self.placar_2}'
-
-class Pontuacao(models.Model):
     pontuacao = models.IntegerField(null=True, blank=True)
     valor_pontuacao = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    palpite = models.ForeignKey(Palpite, related_name='pontuacoes', on_delete=models.CASCADE)
     
     def __str__(self):
-        return str(self.pontuacao)
+        return f'{self.placar_1}  X  {self.placar_2}'
