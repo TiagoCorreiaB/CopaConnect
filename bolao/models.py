@@ -8,7 +8,7 @@ class Bolao(models.Model):
         FINALIZADO = 'FI', 'Finalizado'
         
     nome = models.CharField(max_length=50)
-    descricao = models.TextField()
+    descricao = models.TextField(blank=True, null=True)
     partida = models.ForeignKey(Partida, related_name='boloes', on_delete=models.CASCADE)
     vencedor = models.ForeignKey(
         Usuario,
