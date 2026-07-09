@@ -9,7 +9,11 @@ class Bolao(models.Model):
         
     nome = models.CharField(max_length=50)
     descricao = models.TextField(blank=True, null=True)
-    partida = models.ForeignKey(Partida, related_name='boloes', on_delete=models.CASCADE)
+    partida = models.ForeignKey(
+        Partida,
+        related_name='boloes',
+        on_delete=models.CASCADE
+    )
     vencedor = models.ForeignKey(
         Usuario,
         related_name='boloes_vencidos',
@@ -23,7 +27,16 @@ class Bolao(models.Model):
         verbose_name='Status',
         default=Status.INICIADO
     )
-    usuarios = models.ManyToManyField(Usuario, related_name='boloes', blank=True)
+    usuarios = models.ManyToManyField(
+        Usuario,
+        related_name='boloes',
+        blank=True
+    )
+    dono = models.ForeignKey(
+        Usuario, 
+        on_delete=models.CASCADE, 
+        related_name='boloes_criados'
+    )
 
     class Meta:
         verbose_name = 'Bolão'

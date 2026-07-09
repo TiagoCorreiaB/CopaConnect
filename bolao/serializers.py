@@ -1,10 +1,12 @@
+from django.utils import timezone
 from rest_framework import serializers
 from .models import Bolao, Palpite
-from django.utils import timezone
+from usuarios.serializers import UsuarioSerializer
 from gemini_api.client import get_descricao_bolao
 
 class BolaoModelSerializer(serializers.ModelSerializer):
     quantidade_usuarios = serializers.SerializerMethodField(read_only=True)
+    dono = UsuarioSerializer(read_only=True)
 
     class Meta:
         model = Bolao
