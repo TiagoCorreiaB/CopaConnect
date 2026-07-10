@@ -4,7 +4,7 @@ from .models import Bolao, Palpite
 from usuarios.serializers import UsuarioSerializer
 from partidas.serializers import PartidaSerializer
 from partidas.models import Partida
-from gemini_api.client import get_descricao_bolao
+from .tasks import gerar_descricao_task
 
 class BolaoWriteModelSerializer(serializers.ModelSerializer):
     class Meta:
@@ -41,18 +41,13 @@ class BolaoWriteModelSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         descricao = validated_data.get('descricao', '')
-        partida = validated_data.get('partida')
 
         if not descricao:
-            
-            descricao_ia = get_descricao_bolao(
-                time_1=partida.time_1,
-                time_2=partida.time_2,
-                data=partida.data,
-                fase=partida.fase
-            )
-            
-            validated_data['descricao'] = descricao_ia
+            validated_data['descricao'] = 'Gerando descrição com IA.'
+            bolao = super().create(validated_data)
+            gerar_descricao_task.delay(bolao.id)
+            return bolao
+        
         return super().create(validated_data)
     
 class BolaoReadModelSerializer(serializers.ModelSerializer):
