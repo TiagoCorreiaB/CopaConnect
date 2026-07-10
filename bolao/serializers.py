@@ -10,7 +10,7 @@ class BolaoWriteModelSerializer(serializers.ModelSerializer):
     class Meta:
         model = Bolao
         fields = '__all__'
-        read_only_fields = ['dono']
+        read_only_fields = ['dono','usuarios']
 
     def validate_partida(self, value):
         if value.status != Partida.Status.NAO_INICIADA:
