@@ -53,7 +53,7 @@ class BolaoWriteModelSerializer(serializers.ModelSerializer):
 class BolaoReadModelSerializer(serializers.ModelSerializer):
     class Meta:
         model = Bolao
-        fields = '__all__'
+        fields = ['id','nome','descricao','partida','vencedor','status','usuarios','dono']
 
     quantidade_usuarios = serializers.SerializerMethodField(read_only=True)
     dono = UsuarioSerializer(read_only=True)
