@@ -4,13 +4,17 @@ from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
 from rest_framework import viewsets
 from django.shortcuts import get_object_or_404
+from django.db.models import Q
 from .models import Bolao, Palpite
-from .serializers import BolaoWriteModelSerializer, BolaoReadModelSerializer, PalpiteModelSerializer
+from .serializers import BolaoWriteModelSerializer, BolaoReadModelSerializer, PalpiteWriteModelSerializer, PalpiteReadModelSerializer
 from usuarios.models import Usuario
 
 class BolaoModelViewSet(viewsets.ModelViewSet):
-    queryset = Bolao.objects.all()
-    filterset_fields = ['status', 'dono', 'partida']
+    filterset_fields = ['status', 'partida']
+
+    def get_queryset(self):
+        usuario = self.request.user
+        return Bolao.objects.filter(Q(dono=usuario)|Q(usuarios=usuario)).distinct()
 
     def get_serializer_class(self):
         if self.action in ['list', 'retrieve']:
@@ -114,6 +118,27 @@ class BolaoModelViewSet(viewsets.ModelViewSet):
         )
 
 class PalpiteModelViewSet(viewsets.ModelViewSet):
-    queryset = Palpite.objects.all()
-    filterset_fields = ['usuario', 'bolao']
-    serializer_class = PalpiteModelSerializer
+    filterset_fields = ['bolao']
+
+    def get_queryset(self):
+        usuario = self.request.user
+        return Palpite.objects.filter(dono=usuario)
+    
+    def get_serializer_class(self):
+        if self.action in ['list', 'retrieve']:
+            return PalpiteReadModelSerializer
+        
+        return PalpiteWriteModelSerializer
+    
+    def perform_create(self, serializer):
+        serializer.save(dono=self.request.user)
+
+    def perform_update(self, serializer):
+        if self.get_object().dono != self.request.user:
+            raise PermissionDenied('Apenas o dono pode editar este palpite.')
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if instance.dono != self.request.user:
+            raise PermissionDenied('Apenas o dono pode deletar este palpite.')
+        instance.delete()

@@ -11,4 +11,4 @@ class BolaoModelAdmin(admin.ModelAdmin):
 
 @admin.register(Palpite)
 class PalpiteModelAdmin(admin.ModelAdmin):
-    list_display = ('id','placar_1','placar_2','valor','data','usuario','bolao','pontuacao','valor_pontuacao')
+    list_display = ('id','placar_1','placar_2','valor','data','dono','bolao','pontuacao','valor_pontuacao')

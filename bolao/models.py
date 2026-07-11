@@ -1,4 +1,5 @@
 from django.db import models
+from django.core.validators import MinValueValidator, MaxValueValidator
 from usuarios.models import Usuario
 from partidas.models import Partida
 
@@ -46,11 +47,27 @@ class Bolao(models.Model):
         return self.nome
     
 class Palpite(models.Model):
-    placar_1 = models.IntegerField()
-    placar_2 = models.IntegerField()
-    valor = models.DecimalField(max_digits=10, decimal_places=2)
+    placar_1 = models.IntegerField(
+        validators=[
+            MinValueValidator(0, 'O valor do placar não pode ser inferior a 0'),
+            MaxValueValidator(99, 'O valor do placar não pode ser superior a 99')
+        ]
+    )
+    placar_2 = models.IntegerField(
+        validators=[
+            MinValueValidator(0, 'O valor do placar não pode ser inferior a 0'),
+            MaxValueValidator(99, 'O valor do placar não pode ser superior a 99')
+        ]
+    )
+    valor = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        validators=[
+            MinValueValidator(1, 'O valor do palpite não pode ser inferior a 1'),
+        ]
+    )
     data = models.DateTimeField(auto_now_add=True)
-    usuario = models.ForeignKey(Usuario, related_name='palpites', on_delete=models.CASCADE)
+    dono = models.ForeignKey(Usuario, related_name='palpites', on_delete=models.CASCADE)
     bolao = models.ForeignKey(Bolao, related_name='palpites', on_delete=models.CASCADE)
     pontuacao = models.IntegerField(null=True, blank=True)
     valor_pontuacao = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)

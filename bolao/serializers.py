@@ -9,8 +9,8 @@ from .tasks import gerar_descricao_task
 class BolaoWriteModelSerializer(serializers.ModelSerializer):
     class Meta:
         model = Bolao
-        fields = '__all__'
-        read_only_fields = ['dono','usuarios']
+        fields = ['id','nome','descricao','partida','vencedor','status','usuarios','dono']
+        read_only_fields = ['dono','usuarios','vencedor']
 
     def validate_partida(self, value):
         if value.status != Partida.Status.NAO_INICIADA:
@@ -64,7 +64,25 @@ class BolaoReadModelSerializer(serializers.ModelSerializer):
     def get_quantidade_usuarios(self, obj):
         return obj.usuarios.count()
 
-class PalpiteModelSerializer(serializers.ModelSerializer):
+class PalpiteWriteModelSerializer(serializers.ModelSerializer):
     class Meta:
         model = Palpite
-        fields = '__all__'
+        fields = ['id','placar_1','placar_2','valor','data','dono','bolao','pontuacao','valor_pontuacao']
+        read_only_fields = ['dono', 'pontuacao', 'valor_pontuacao']
+
+    def validate_bolao(self, value):
+        if value.partida.data < timezone.now():
+            raise serializers.ValidationError('A partida já foi iniciada, não é possível fazer um palpite.')
+        
+        if value.status == Bolao.Status.FINALIZADO:
+            raise serializers.ValidationError('Não é possível fazer um palpite em um bolão finalizado.')
+        
+        return value
+
+class PalpiteReadModelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Palpite
+        fields = ['id','placar_1','placar_2','valor','data','dono','bolao','pontuacao','valor_pontuacao']
+
+    usuario = UsuarioSerializer(read_only=True)
+    bolao = BolaoReadModelSerializer(read_only=True)
