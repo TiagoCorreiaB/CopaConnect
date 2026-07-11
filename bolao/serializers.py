@@ -70,14 +70,34 @@ class PalpiteWriteModelSerializer(serializers.ModelSerializer):
         fields = ['id','placar_1','placar_2','valor','data','dono','bolao','pontuacao','valor_pontuacao']
         read_only_fields = ['dono', 'pontuacao', 'valor_pontuacao']
 
-    def validate_bolao(self, value):
-        if value.partida.data < timezone.now():
-            raise serializers.ValidationError('A partida já foi iniciada, não é possível fazer um palpite.')
+    def validate(self, attrs):
+        bolao = attrs.get('bolao', getattr(self.instance, 'bolao', None))
         
-        if value.status == Bolao.Status.FINALIZADO:
-            raise serializers.ValidationError('Não é possível fazer um palpite em um bolão finalizado.')
-        
-        return value
+        usuario = self.context['request'].user
+
+        if bolao:
+            if not bolao.usuarios.filter(id=usuario.id).exists():
+                raise serializers.ValidationError(
+                    'Você precisa participar deste bolão para dar um palpite.'
+                )
+            
+            if self.instance is None:
+                if Palpite.objects.filter(bolao=bolao, dono=usuario).exists():
+                    raise serializers.ValidationError(
+                        'Você já fez um palpite para este bolão.'
+                    )
+
+            if bolao.partida.data < timezone.now():
+                raise serializers.ValidationError(
+                    'A partida já foi iniciada, não é possível fazer ou alterar palpites.'
+                )
+            
+            if bolao.status == Bolao.Status.FINALIZADO:
+                raise serializers.ValidationError(
+                    'Não é possível fazer palpites em um bolão finalizado.'
+                )
+
+        return attrs
 
 class PalpiteReadModelSerializer(serializers.ModelSerializer):
     class Meta:

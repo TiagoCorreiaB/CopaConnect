@@ -122,7 +122,7 @@ class PalpiteModelViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         usuario = self.request.user
-        return Palpite.objects.filter(dono=usuario)
+        return Palpite.objects.filter(Q(dono=usuario)|Q(bolao__usuarios=usuario)|Q(bolao__dono=usuario)).distinct()
     
     def get_serializer_class(self):
         if self.action in ['list', 'retrieve']:
