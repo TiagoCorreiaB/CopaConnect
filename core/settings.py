@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'channels',
     'rest_framework',
+    'django_filters',
     'notificacao',
     'bolao',
     'chat',

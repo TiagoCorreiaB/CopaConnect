@@ -2,7 +2,7 @@ from rest_framework import viewsets
 from django.db.models import Q
 from django_filters import rest_framework as filters
 from .models import Partida
-from .serializers import PartidaSerializer
+from .serializers import PartidaModelSerializer
 
 class PartidaFilter(filters.FilterSet):
     time = filters.CharFilter(method='filter_por_time')
@@ -16,5 +16,5 @@ class PartidaFilter(filters.FilterSet):
 
 class PartidaReadOnlyModelViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Partida.objects.all()
-    serializer_class = PartidaSerializer
+    serializer_class = PartidaModelSerializer
     filterset_class = PartidaFilter
