@@ -280,7 +280,7 @@ def importar_partidas(rounds=None):
                     total_atualizadas += 1
 
             except (KeyError, TypeError, ValueError) as e:
-                logger.warning(f'Erro ao processar evento {event.get("id", "?")}: {e}')
+                logger.warning(f'Erro ao processar evento {event.get('id', '?')}: {e}')
 
         logger.info(f'Round {round_num}: {len(events)} partidas processadas.')
 

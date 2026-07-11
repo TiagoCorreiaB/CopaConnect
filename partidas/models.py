@@ -25,4 +25,4 @@ class Partida(models.Model):
     estatisticas_finais = models.JSONField(null=True, blank=True)
 
     def __str__(self):
-        return self.time_1 + " x " + self.time_2
+        return self.time_1 + ' x ' + self.time_2
