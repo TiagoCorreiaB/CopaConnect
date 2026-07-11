@@ -5,6 +5,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework import viewsets
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
+from django.utils import timezone
 from .models import Bolao, Palpite
 from .serializers import BolaoWriteModelSerializer, BolaoReadModelSerializer, PalpiteWriteModelSerializer, PalpiteReadModelSerializer
 from usuarios.models import Usuario
@@ -94,6 +95,8 @@ class BolaoModelViewSet(viewsets.ModelViewSet):
             )
 
         bolao.usuarios.remove(usuario)
+
+        Palpite.objects.filter(bolao=bolao, dono=usuario).delete()
         
         return Response(
             {'detalhe': f'Usuário {usuario.first_name} removido com sucesso do bolão!'},
@@ -104,6 +107,12 @@ class BolaoModelViewSet(viewsets.ModelViewSet):
     def sair_bolao(self, request, pk=None):
         bolao = self.get_object()
 
+        if bolao.dono == request.user:
+            return Response(
+                {'detalhe': 'O dono não pode sair do bolão. Você deve deletá-lo se não quiser mais participar.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         if not bolao.usuarios.filter(id=request.user.id).exists():
             return Response(
                 {'detalhe': 'Você não está participando deste bolão.'},
@@ -111,6 +120,8 @@ class BolaoModelViewSet(viewsets.ModelViewSet):
             )
 
         bolao.usuarios.remove(request.user)
+
+        Palpite.objects.filter(bolao=bolao, dono=request.user).delete()
         
         return Response(
             {'detalhe': 'Você saiu do bolão com sucesso.'},
@@ -141,4 +152,7 @@ class PalpiteModelViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         if instance.dono != self.request.user:
             raise PermissionDenied('Apenas o dono pode deletar este palpite.')
+
+        if instance.bolao.partida.data < timezone.now():
+            raise PermissionDenied('Não é possível deletar um palpite após o início da partida.')
         instance.delete()

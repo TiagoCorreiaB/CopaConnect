@@ -70,6 +70,13 @@ class PalpiteWriteModelSerializer(serializers.ModelSerializer):
         fields = ['id','placar_1','placar_2','valor','data','dono','bolao','pontuacao','valor_pontuacao']
         read_only_fields = ['dono', 'pontuacao', 'valor_pontuacao']
 
+    def validate_bolao(self, value):
+        if self.instance and self.instance.bolao != value:
+            raise serializers.ValidationError(
+                'Não é permitido alterar o bolão de um palpite existente.'
+            )
+        return value
+
     def validate(self, attrs):
         bolao = attrs.get('bolao', getattr(self.instance, 'bolao', None))
         
