@@ -8,7 +8,7 @@ from django.db.models import Q
 from django.utils import timezone
 from .models import Bolao, Palpite
 from .serializers import BolaoWriteModelSerializer, BolaoReadModelSerializer, PalpiteWriteModelSerializer, PalpiteReadModelSerializer
-from usuarios.models import Usuario
+from usuarios.models import Usuario, Amizade
 
 class BolaoModelViewSet(viewsets.ModelViewSet):
     filterset_fields = ['status', 'partida']
@@ -92,6 +92,18 @@ class BolaoModelViewSet(viewsets.ModelViewSet):
             return Response(
                 {'detalhe': 'Este usuário não faz parte do bolão.'},
                 status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        sao_amigos = Amizade.objects.filter(
+            status=Amizade.Status.ACEITO
+        ).filter(
+            Q(usuario=request.user, amigo=usuario) | Q(usuario=usuario, amigo=request.user)
+        ).exists()
+
+        if not sao_amigos:
+            return Response(
+                {'detalhe': 'Você só pode adicionar usuários que estejam na sua lista de amigos.'},
+                status=status.HTTP_403_FORBIDDEN
             )
 
         bolao.usuarios.remove(usuario)
