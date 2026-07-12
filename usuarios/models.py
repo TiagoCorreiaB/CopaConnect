@@ -16,7 +16,7 @@ class Usuario(AbstractUser):
             if is_new:
                 Perfil.objects.create(
                     usuario=self,
-                    nome=self.first_name
+                    apelido=self.first_name
                 )
 
 class Perfil(models.Model):
@@ -26,4 +26,22 @@ class Perfil(models.Model):
     descricao = models.TextField(max_length=500, blank=True)
 
     def __str__(self):
-        return f'Perfil de {self.nome}'
+        return f'Perfil de {self.apelido}'
+    
+class Amizade(models.Model):
+    class Status(models.TextChoices):
+        ACEITO = 'AC', 'Aceito'
+        PENDENTE = 'PE', 'Pendente'
+        BLOQUEADO = 'BL', 'Bloqueado'
+
+    usuario = models.ForeignKey(Usuario, related_name='amizades_iniciadas', on_delete=models.CASCADE)                            
+    amigo = models.ForeignKey(Usuario, related_name='amizades_recebidas', on_delete=models.CASCADE)                              
+    status = models.CharField(
+        max_length=2,
+        choices=Status.choices,
+        verbose_name='Status',
+        default=Status.PENDENTE
+    )
+
+    class Meta:                                
+        unique_together = ('usuario', 'amigo')

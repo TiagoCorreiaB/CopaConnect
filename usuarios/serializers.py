@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.contrib.auth.hashers import make_password
-from .models import Usuario, Perfil
+from .models import Usuario, Perfil, Amizade
 
 class UsuarioWriteModelSerializer(serializers.ModelSerializer):
     nome = serializers.CharField(source='first_name', required=True)
@@ -61,7 +61,7 @@ class UsuarioReadModelSerializer(serializers.ModelSerializer):
 class PerfilWriteModelSerializer(serializers.ModelSerializer):
     class Meta:
         model = Perfil
-        fields = ['id','usuario','foto','nome','descricao']
+        fields = ['id','usuario','foto','apelido','descricao']
         read_only_fields = ['usuario']
 
 class PerfilReadModelSerializer(serializers.ModelSerializer):
@@ -69,4 +69,25 @@ class PerfilReadModelSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Perfil
-        fields = ['id','usuario','foto','nome','descricao']
+        fields = ['id','usuario','foto','apelido','descricao']
+
+class AmizadeWriteModelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Amizade
+        fields = ['id','usuario','amigo','status']
+        read_only_fields = ['usuario']
+
+    def validate_amigo(self, value):
+        if value == self.context['request'].user:
+            raise serializers.ValidationError(
+                'Você não pode ser seu próprio amigo.'
+            )
+        return value
+
+class AmizadeReadModelSerializer(serializers.ModelSerializer):
+    usuario = UsuarioReadModelSerializer(read_only=True)
+    amigo = UsuarioReadModelSerializer(read_only=True)
+
+    class Meta:
+        model = Amizade
+        fields = ['id','usuario','amigo','status']
