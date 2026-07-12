@@ -2,7 +2,7 @@ from django.utils import timezone
 from rest_framework import serializers
 from .models import Bolao, Palpite
 from usuarios.serializers import UsuarioSerializer
-from partidas.serializers import PartidaSerializer
+from partidas.serializers import PartidaModelSerializer
 from partidas.models import Partida
 from .tasks import gerar_descricao_task
 
@@ -53,12 +53,12 @@ class BolaoWriteModelSerializer(serializers.ModelSerializer):
 class BolaoReadModelSerializer(serializers.ModelSerializer):
     class Meta:
         model = Bolao
-        fields = '__all__'
+        fields = ['id','nome','descricao','partida','vencedor','status','usuarios','dono']
 
     quantidade_usuarios = serializers.SerializerMethodField(read_only=True)
     dono = UsuarioSerializer(read_only=True)
     vencedor = UsuarioSerializer(read_only=True)
-    partida = PartidaSerializer(read_only=True)
+    partida = PartidaModelSerializer(read_only=True)
     usuarios = UsuarioSerializer(read_only=True, many=True)
     
     def get_quantidade_usuarios(self, obj):

@@ -1,19 +1,17 @@
-import os
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, time, timedelta, timezone
 
 import requests
 from celery import shared_task
+from django.conf import settings
 from django.utils import timezone as dj_timezone
 
-from django.db import models
+
 from partidas.models import Partida
 
 logger = logging.getLogger(__name__)
 
 BASE_URL = 'https://sofascore6.p.rapidapi.com/api/sofascore'
-SEASON_ID = 58210
-TOURNAMENT_ID = 16
 
 STATUS_MAP = {
     'notstarted': Partida.Status.NAO_INICIADA,
@@ -51,11 +49,11 @@ INCIDENTE_TRADUCAO = {
 
 
 def _get_headers():
-    API_KEY = os.environ.get('RAPID_API_KEY')
-    if not API_KEY:
-        raise ValueError('RAPID_API_KEY não encontrada nas variáveis de ambiente.')
+    api_key = settings.RAPID_API_KEY
+    if not api_key:
+        raise ValueError('RAPID_API_KEY não encontrada nas configurações.')
     return {
-        'x-rapidapi-key': API_KEY,
+        'x-rapidapi-key': api_key,
         'x-rapidapi-host': 'sofascore6.p.rapidapi.com',
         'Content-Type': 'application/json',
     }
@@ -68,11 +66,14 @@ def _buscar_incidentes(event_id, headers):
     try:
         response = requests.get(url, headers=headers, params=params, timeout=15)
         response.raise_for_status()
+        data = response.json()
     except requests.RequestException as e:
-        logger.error(f'Erro ao buscar incidentes da partida {event_id}: {e}')
+        logger.error(f'Erro de rede ao buscar incidentes da partida {event_id}: {e}')
+        return None
+    except ValueError:
+        logger.error(f'A API não retornou um JSON válido para a partida {event_id}')
         return None
 
-    data = response.json()
     incidents = data if isinstance(data, list) else data.get('incidents', [])
 
     gols = []
@@ -86,20 +87,26 @@ def _buscar_incidentes(event_id, headers):
         is_home = inc.get('isHome', None)
 
         if inc_type == 'goal':
+            classe_incidente = inc.get('incidentClass', 'regular')
+            tipo_traduzido = INCIDENTE_TRADUCAO.get(classe_incidente, classe_incidente.capitalize())
             gols.append({
                 'jogador': player_name,
                 'minuto': minute,
                 'time': 1 if is_home else 2,
-                'tipo': INCIDENTE_TRADUCAO.get(inc.get('incidentClass', 'regular'), inc.get('incidentClass', 'Normal')),
+                'tipo': tipo_traduzido,
             })
 
         elif inc_type == 'card':
+            classe_incidente = inc.get('incidentClass', '')
+            tipo_traduzido = INCIDENTE_TRADUCAO.get(classe_incidente, classe_incidente.capitalize())
+            motivo_original = inc.get('reason', '')
+            motivo_traduzido = INCIDENTE_TRADUCAO.get(motivo_original, motivo_original)
             cartoes.append({
                 'jogador': player_name,
                 'minuto': minute,
                 'time': 1 if is_home else 2,
-                'tipo': INCIDENTE_TRADUCAO.get(inc.get('incidentClass', ''), inc.get('incidentClass', '')),
-                'motivo': INCIDENTE_TRADUCAO.get(inc.get('reason', ''), inc.get('reason', '')),
+                'tipo': tipo_traduzido,
+                'motivo': motivo_traduzido,
             })
 
         elif inc_type == 'inGamePenalty':
@@ -122,26 +129,61 @@ def _parse_events(response_data):
     return response_data.get('events', [])
 
 
-@shared_task()
-def atualizar_partidas_ao_vivo():
-    agora = dj_timezone.localtime()
-    fim_do_dia = agora.replace(hour=23, minute=59, second=59, microsecond=999999)
+def _extrair_rodada_numero(fase):
+    if not fase:
+        return None
+    try:
+        return int(fase.split()[-1])
+    except (ValueError, IndexError):
+        return None
 
-    partidas = Partida.objects.filter(
-        data__lte=fim_do_dia,
-    ).exclude(
-        status__in=[Partida.Status.FINALIZADA, Partida.Status.CANCELADA]
+
+@shared_task()
+def atualizar_incidentes(partida_id_api):
+    headers = _get_headers()
+    estatisticas = _buscar_incidentes(partida_id_api, headers)
+
+    if estatisticas:
+        updated = Partida.objects.filter(id_api=partida_id_api).update(
+            estatisticas_finais=estatisticas
+        )
+        if updated:
+            logger.info(f'Incidentes atualizados para a partida {partida_id_api}.')
+        else:
+            logger.warning(f'Partida {partida_id_api} não encontrada ao salvar incidentes.')
+    else:
+        logger.warning(f'Nenhum incidente retornado para a partida {partida_id_api}.')
+
+
+@shared_task()
+def atualizar_partidas():
+    agora = dj_timezone.localtime()
+    inicio_do_dia = dj_timezone.make_aware(
+        datetime.combine(agora.date(), time.min),
+        timezone=agora.tzinfo,
+    )
+    fim_do_dia = dj_timezone.make_aware(
+        datetime.combine(agora.date(), time.max),
+        timezone=agora.tzinfo,
     )
 
-    if not partidas.exists():
+    partidas = list(
+        Partida.objects.filter(
+            data__range=(inicio_do_dia, fim_do_dia),
+        ).exclude(
+            status__in=[Partida.Status.FINALIZADA, Partida.Status.CANCELADA]
+        )
+    )
+
+    if not partidas:
         logger.info('Nenhuma partida para atualizar.')
         return 'Nenhuma partida para atualizar.'
 
     limite = agora + timedelta(minutes=2)
-    tem_jogo_proximo = partidas.filter(
-        models.Q(status=Partida.Status.EM_ANDAMENTO) |
-        models.Q(data__lte=limite)
-    ).exists()
+    tem_jogo_proximo = any(
+        p.status == Partida.Status.EM_ANDAMENTO or p.data <= limite
+        for p in partidas
+    )
 
     if not tem_jogo_proximo:
         logger.info('Nenhuma partida próxima de começar.')
@@ -149,34 +191,43 @@ def atualizar_partidas_ao_vivo():
 
     headers = _get_headers()
 
-    rounds_to_check = set(partidas.values_list('fase', flat=True))
+    season_id = settings.SOFASCORE_SEASON_ID
+    tournament_id = settings.SOFASCORE_TOURNAMENT_ID
+
+    rounds_to_check = {p.rodada for p in partidas if p.rodada is not None}
+
+    if not rounds_to_check:
+        for p in partidas:
+            num = _extrair_rodada_numero(p.fase)
+            if num is not None:
+                rounds_to_check.add(num)
+
     round_events = {}
 
-    for fase in rounds_to_check:
-        try:
-            round_num = int(fase.split()[-1])
-        except (ValueError, IndexError):
-            continue
-
+    for round_num in rounds_to_check:
         url = f'{BASE_URL}/v1/unique-tournament/season/round/matches'
         params = {
             'round': round_num,
-            'season_id': SEASON_ID,
-            'unique_tournament_id': TOURNAMENT_ID,
+            'season_id': season_id,
+            'unique_tournament_id': tournament_id,
         }
 
         try:
             response = requests.get(url, headers=headers, params=params, timeout=15)
             response.raise_for_status()
-            events = _parse_events(response.json())
-
-            for event in events:
-                round_events[event['id']] = event
-
+            data = response.json()
         except requests.RequestException as e:
             logger.error(f'Erro ao buscar round {round_num}: {e}')
+            continue
+        except ValueError:
+            logger.error(f'A API não retornou um JSON válido para o round {round_num}')
+            continue
 
-    atualizadas = 0
+        events = _parse_events(data)
+        for event in events:
+            round_events[event['id']] = event
+
+    partidas_atualizadas = []
 
     for partida in partidas:
         event = round_events.get(partida.id_api)
@@ -196,26 +247,29 @@ def atualizar_partidas_ao_vivo():
         partida.tempo = TEMPO_TRADUCAO.get(desc_original, desc_original)
 
         if status_type in ('inprogress', 'finished'):
-            estatisticas = _buscar_incidentes(partida.id_api, headers)
-            if estatisticas:
-                partida.estatisticas_finais = estatisticas
+            atualizar_incidentes.delay(partida.id_api)
 
-        partida.save()
-        atualizadas += 1
+        partidas_atualizadas.append(partida)
         logger.info(
             f'Partida {partida.time_1} x {partida.time_2}: '
             f'{partida.placar_1}-{partida.placar_2} ({partida.tempo})'
         )
 
-    return f'{atualizadas} partida(s) atualizada(s).'
+    if partidas_atualizadas:
+        Partida.objects.bulk_update(
+            partidas_atualizadas,
+            ['placar_1', 'placar_2', 'status', 'tempo']
+        )
+
+    return f'{len(partidas_atualizadas)} partida(s) atualizada(s).'
 
 
 @shared_task()
-def importar_partidas(rounds=None):
-    if rounds is None:
-        rounds = list(range(1, 4))
-
+def importar_partidas(rounds):
     headers = _get_headers()
+
+    season_id = settings.SOFASCORE_SEASON_ID
+    tournament_id = settings.SOFASCORE_TOURNAMENT_ID
 
     total_criadas = 0
     total_atualizadas = 0
@@ -226,18 +280,22 @@ def importar_partidas(rounds=None):
         url = f'{BASE_URL}/v1/unique-tournament/season/round/matches'
         params = {
             'round': round_num,
-            'season_id': SEASON_ID,
-            'unique_tournament_id': TOURNAMENT_ID,
+            'season_id': season_id,
+            'unique_tournament_id': tournament_id,
         }
 
         try:
             response = requests.get(url, headers=headers, params=params, timeout=15)
             response.raise_for_status()
+            data = response.json()
         except requests.RequestException as e:
             logger.error(f'Erro ao buscar round {round_num}: {e}')
             continue
+        except ValueError:
+            logger.error(f'A API não retornou um JSON válido para o round {round_num}')
+            continue
 
-        events = _parse_events(response.json())
+        events = _parse_events(data)
 
         if not events:
             logger.warning(f'Nenhuma partida encontrada no round {round_num}.')
@@ -255,11 +313,17 @@ def importar_partidas(rounds=None):
                 placar_2 = away_score.get('current') if isinstance(away_score, dict) else None
 
                 timestamp = event.get('timestamp')
-                data = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+                data_partida = datetime.fromtimestamp(timestamp, tz=timezone.utc)
 
                 status_info = event.get('status', {})
                 status_type = status_info.get('type', '').lower()
                 status = STATUS_MAP.get(status_type, Partida.Status.NAO_INICIADA)
+
+                desc_original = status_info.get('description', '')
+                tempo = TEMPO_TRADUCAO.get(desc_original, desc_original) if desc_original else None
+
+                partida_existente = Partida.objects.filter(id_api=id_api).first()
+                estatisticas_atuais = partida_existente.estatisticas_finais if partida_existente else None
 
                 _, created = Partida.objects.update_or_create(
                     id_api=id_api,
@@ -268,11 +332,18 @@ def importar_partidas(rounds=None):
                         'time_2': time_2,
                         'placar_1': placar_1,
                         'placar_2': placar_2,
-                        'data': data,
+                        'data': data_partida,
                         'status': status,
+                        'tempo': tempo,
+                        'estatisticas_finais': estatisticas_atuais,
                         'fase': f'Rodada {round_num}',
+                        'rodada': round_num,
                     },
                 )
+
+                if status_type in ('inprogress', 'finished'):
+                    if not (status_type == 'finished' and estatisticas_atuais):
+                        atualizar_incidentes.delay(id_api)
 
                 if created:
                     total_criadas += 1

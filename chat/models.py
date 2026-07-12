@@ -15,7 +15,7 @@ class Sala(models.Model):
         default=Status.ABERTA
     )
     usuarios = models.ManyToManyField(Usuario, related_name='salas', blank=True)
-    partida = models.ForeignKey(Partida, related_name='salas')
+    partida = models.ForeignKey(Partida, related_name='salas',on_delete=models.CASCADE)
 
     def __str__(self):
         return f'Sala {self.nome}'
