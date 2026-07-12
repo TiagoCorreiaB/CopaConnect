@@ -138,7 +138,12 @@ CHANNEL_LAYERS = {
     },
 }
 
+RAPID_API_KEY = os.environ.get('RAPID_API_KEY')
+SOFASCORE_SEASON_ID = int(os.environ.get('SOFASCORE_SEASON_ID'))
+SOFASCORE_TOURNAMENT_ID = int(os.environ.get('SOFASCORE_TOURNAMENT_ID'))
+
 CELERY_BROKER_URL = 'pyamqp://guest@localhost//'
+
 CELERY_TIMEZONE = 'America/Bahia'
 CELERY_RESULT_BACKEND = 'django-db'
 CELERY_BEAT_SCHEDULE = {

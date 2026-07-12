@@ -20,8 +20,9 @@ class Partida(models.Model):
         verbose_name='Status',
         default=Status.NAO_INICIADA
     )
-    tempo = models.CharField(max_length=10, null=True, blank=True)
+    tempo = models.CharField(max_length=30, null=True, blank=True)
     fase = models.CharField(max_length=50)
+    rodada = models.IntegerField(null=True, blank=True)
     estatisticas_finais = models.JSONField(null=True, blank=True)
 
     def __str__(self):
