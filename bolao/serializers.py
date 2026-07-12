@@ -1,7 +1,7 @@
 from django.utils import timezone
 from rest_framework import serializers
 from .models import Bolao, Palpite
-from usuarios.serializers import UsuarioSerializer
+from usuarios.serializers import UsuarioReadModelSerializer
 from partidas.serializers import PartidaModelSerializer
 from partidas.models import Partida
 from .tasks import gerar_descricao_task
@@ -13,6 +13,11 @@ class BolaoWriteModelSerializer(serializers.ModelSerializer):
         read_only_fields = ['dono','usuarios','vencedor']
 
     def validate_partida(self, value):
+        if self.instance and self.instance.partida != value:
+            raise serializers.ValidationError(
+                'Não é permitido alterar a partida de um bolão existente.'
+            )
+
         if value.status != Partida.Status.NAO_INICIADA:
             raise serializers.ValidationError(
                 'A partida não está mais com o status "Não iniciada".'
@@ -20,7 +25,7 @@ class BolaoWriteModelSerializer(serializers.ModelSerializer):
 
         if value.data < timezone.now():
             raise serializers.ValidationError(
-                'O horário previsto para a partida já passou'
+                'O horário previsto para a partida já passou.'
             )
 
         return value
@@ -56,10 +61,10 @@ class BolaoReadModelSerializer(serializers.ModelSerializer):
         fields = ['id','nome','descricao','partida','vencedor','status','usuarios','dono']
 
     quantidade_usuarios = serializers.SerializerMethodField(read_only=True)
-    dono = UsuarioSerializer(read_only=True)
-    vencedor = UsuarioSerializer(read_only=True)
+    dono = UsuarioReadModelSerializer(read_only=True)
+    vencedor = UsuarioReadModelSerializer(read_only=True)
     partida = PartidaModelSerializer(read_only=True)
-    usuarios = UsuarioSerializer(read_only=True, many=True)
+    usuarios = UsuarioReadModelSerializer(read_only=True, many=True)
     
     def get_quantidade_usuarios(self, obj):
         return obj.usuarios.count()
@@ -94,7 +99,7 @@ class PalpiteWriteModelSerializer(serializers.ModelSerializer):
                         'Você já fez um palpite para este bolão.'
                     )
 
-            if bolao.partida.data < timezone.now():
+            if bolao.partida.data < timezone.now() or bolao.partida.status != Partida.Status.NAO_INICIADA:
                 raise serializers.ValidationError(
                     'A partida já foi iniciada, não é possível fazer ou alterar palpites.'
                 )
@@ -111,5 +116,5 @@ class PalpiteReadModelSerializer(serializers.ModelSerializer):
         model = Palpite
         fields = ['id','placar_1','placar_2','valor','data','dono','bolao','pontuacao','valor_pontuacao']
 
-    usuario = UsuarioSerializer(read_only=True)
+    usuario = UsuarioReadModelSerializer(read_only=True)
     bolao = BolaoReadModelSerializer(read_only=True)

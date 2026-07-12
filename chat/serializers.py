@@ -1,10 +1,10 @@
 from .models import Sala, Comentario
 from rest_framework import serializers
-from usuarios.serializers import UsuarioSerializer
+from usuarios.serializers import UsuarioReadModelSerializer
 
 class ComentarioSerializer(serializers.ModelSerializer):
     data_envio_formatada = serializers.SerializerMethodField()
-    usuario = UsuarioSerializer()
+    usuario = UsuarioReadModelSerializer()
 
     class Meta:
         model = Comentario

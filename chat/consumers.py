@@ -9,7 +9,6 @@ from djangochannelsrestframework.mixins import CreateModelMixin, ListModelMixin
 from .models import Sala, Comentario
 from usuarios.models import Usuario
 from .serializers import ComentarioSerializer, SalaSerializer
-from usuarios.serializers import UsuarioSerializer
 
 class SalaConsumer(ListModelMixin, CreateModelMixin, ObserverModelInstanceMixin, GenericAsyncAPIConsumer):
     queryset = Sala.objects.all()
