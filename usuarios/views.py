@@ -3,7 +3,7 @@ from rest_framework.exceptions import PermissionDenied
 from django.db.models import Q
 from django_filters import rest_framework as filters
 from .models import Usuario, Perfil
-from .serializers import UsuarioReadModelSerializer, UsuarioWriteModelSerializer, PerfilModelSerializer
+from .serializers import UsuarioReadModelSerializer, UsuarioWriteModelSerializer, PerfilReadModelSerializer, PerfilWriteModelSerializer
 
 class UsuarioFilter(filters.FilterSet):
     nome = filters.CharFilter(method='filter_por_nome')
@@ -38,4 +38,15 @@ class UsuarioModelViewSet(viewsets.ModelViewSet):
 
 class PerfilReadUpdateModelViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin,mixins.UpdateModelMixin,viewsets.GenericViewSet):
     queryset = Perfil.objects.all()
-    serializer_class = PerfilModelSerializer
+    filterset_fields = ['usuario']
+
+    def get_serializer_class(self):
+        if self.action in ['list', 'retrieve']:
+            return PerfilReadModelSerializer
+        
+        return PerfilWriteModelSerializer
+    
+    def perform_update(self, serializer):
+        if self.get_object().usuario != self.request.user:
+            raise PermissionDenied('Apenas o usuário pode editar.')
+        serializer.save()

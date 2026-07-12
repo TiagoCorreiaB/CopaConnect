@@ -58,8 +58,15 @@ class UsuarioReadModelSerializer(serializers.ModelSerializer):
         model = Usuario
         fields = ['id','usuario','nome','sobrenome']
 
-class PerfilModelSerializer(serializers.ModelSerializer):
+class PerfilWriteModelSerializer(serializers.ModelSerializer):
     class Meta:
         model = Perfil
-        fields = '__all__'
+        fields = ['id','usuario','foto','nome','descricao']
         read_only_fields = ['usuario']
+
+class PerfilReadModelSerializer(serializers.ModelSerializer):
+    usuario = UsuarioReadModelSerializer(read_only=True)
+
+    class Meta:
+        model = Perfil
+        fields = ['id','usuario','foto','nome','descricao']
