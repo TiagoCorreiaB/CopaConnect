@@ -64,3 +64,14 @@ class AmizadeModelViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         serializer.save(usuario=self.request.user)
+
+    def perform_update(self, serializer):
+        amizade = self.get_object()
+        if self.request.user not in [amizade.usuario, amizade.amigo]:
+            raise PermissionDenied('Você não tem permissão para alterar esta amizade.')
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if self.request.user not in [instance.usuario, instance.amigo]:
+            raise PermissionDenied('Você não tem permissão para apagar esta amizade.')
+        instance.delete()

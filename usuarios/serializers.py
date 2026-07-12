@@ -77,12 +77,33 @@ class AmizadeWriteModelSerializer(serializers.ModelSerializer):
         fields = ['id','usuario','amigo','status']
         read_only_fields = ['usuario']
 
-    def validate_amigo(self, value):
-        if value == self.context['request'].user:
-            raise serializers.ValidationError(
-                'Você não pode ser seu próprio amigo.'
-            )
-        return value
+    def validate(self, attrs):
+        request = self.context['request']
+        
+        if self.instance is None:
+            amigo = attrs.get('amigo')
+            
+            if amigo == request.user:
+                raise serializers.ValidationError(
+                    'Você não pode ser seu próprio amigo.'
+                )
+                
+            if Amizade.objects.filter(usuario=amigo, amigo=request.user).exists():
+                raise serializers.ValidationError(
+                    'Já existe um convite ou amizade entre vocês.'
+                )
+                
+            attrs['status'] = Amizade.Status.PENDENTE
+
+        else:
+            novo_status = attrs.get('status')
+            
+            if self.instance.usuario == request.user and novo_status == Amizade.Status.ACEITO:
+                raise serializers.ValidationError(
+                    'Apenas o destinatário pode aceitar o convite.'
+                )
+
+        return attrs
 
 class AmizadeReadModelSerializer(serializers.ModelSerializer):
     usuario = UsuarioReadModelSerializer(read_only=True)
