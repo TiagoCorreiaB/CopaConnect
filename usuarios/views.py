@@ -1,3 +1,6 @@
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework import status
 from rest_framework import viewsets, mixins
 from rest_framework.exceptions import PermissionDenied
 from django.db.models import Q
@@ -75,3 +78,38 @@ class AmizadeModelViewSet(viewsets.ModelViewSet):
         if self.request.user not in [instance.usuario, instance.amigo]:
             raise PermissionDenied('Você não tem permissão para apagar esta amizade.')
         instance.delete()
+
+    @action(detail=True, methods=['post'])
+    def aceitar(self, request, pk=None):
+        amizade = self.get_object()
+
+        if amizade.amigo != request.user:
+            raise PermissionDenied('Apenas o destinatário do convite pode aceitá-lo.')
+
+        if amizade.status == Amizade.Status.ACEITO:
+            return Response(
+                {'detalhe': 'Este convite de amizade já foi aceito.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        amizade.status = Amizade.Status.ACEITO
+        amizade.save()
+
+        return Response(
+            {'detalhe': 'Convite de amizade aceito com sucesso!'}, 
+            status=status.HTTP_200_OK
+        )
+
+    @action(detail=True, methods=['post'])
+    def recusar(self, request, pk=None):
+        amizade = self.get_object()
+
+        if request.user not in [amizade.usuario, amizade.amigo]:
+            raise PermissionDenied('Você não tem permissão para interagir com este convite.')
+
+        amizade.delete()
+
+        return Response(
+            {'detalhe': 'Convite recusado/apagado com sucesso.'}, 
+            status=status.HTTP_204_NO_CONTENT
+        )
