@@ -79,8 +79,8 @@ class BolaoResumidoSerializer(serializers.ModelSerializer):
 class PalpiteWriteModelSerializer(serializers.ModelSerializer):
     class Meta:
         model = Palpite
-        fields = ['id','placar_1','placar_2','valor','data','dono','bolao','pontuacao','valor_pontuacao']
-        read_only_fields = ['dono', 'pontuacao', 'valor_pontuacao']
+        fields = ['id','placar_1','placar_2','data','dono','bolao','pontuacao']
+        read_only_fields = ['dono', 'pontuacao']
 
     def validate_bolao(self, value):
         if self.instance and self.instance.bolao != value:
@@ -121,7 +121,7 @@ class PalpiteWriteModelSerializer(serializers.ModelSerializer):
 class PalpiteReadModelSerializer(serializers.ModelSerializer):
     class Meta:
         model = Palpite
-        fields = ['id','placar_1','placar_2','valor','data','dono','bolao','pontuacao','valor_pontuacao']
+        fields = ['id','placar_1','placar_2','data','dono','bolao','pontuacao']
 
     dono = UsuarioReadModelSerializer(read_only=True)
     bolao = BolaoResumidoSerializer(read_only=True)
