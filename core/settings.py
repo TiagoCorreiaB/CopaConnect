@@ -137,7 +137,10 @@ MEDIA_URL = '/media/'
 
 CHANNEL_LAYERS = {
     "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer",
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')],
+        },
     },
 }
 
@@ -145,7 +148,7 @@ RAPID_API_KEY = os.environ.get('RAPID_API_KEY')
 SOFASCORE_SEASON_ID = int(os.environ.get('SOFASCORE_SEASON_ID', 0))
 SOFASCORE_TOURNAMENT_ID = int(os.environ.get('SOFASCORE_TOURNAMENT_ID', 0))
 
-CELERY_BROKER_URL = 'pyamqp://guest@localhost//'
+CELERY_BROKER_URL = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
 
 CELERY_TIMEZONE = 'America/Bahia'
 CELERY_RESULT_BACKEND = 'django-db'
