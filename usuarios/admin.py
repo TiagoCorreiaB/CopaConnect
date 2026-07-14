@@ -9,15 +9,15 @@ class UsuarioModelAdmin(admin.ModelAdmin):
     def exibir_usuario(self, obj):
         return obj.username
     
-    @admin.display(description='usuario')
+    @admin.display(description='nome')
     def exibir_nome(self, obj):
         return obj.first_name
     
-    @admin.display(description='usuario')
+    @admin.display(description='sobrenome')
     def exibir_sobrenome(self, obj):
         return obj.last_name
     
-    @admin.display(description='usuario')
+    @admin.display(description='ultimo login')
     def exibir_ultimo_login(self, obj):
         return obj.last_login
 
