@@ -142,16 +142,10 @@ CHANNEL_LAYERS = {
 }
 
 RAPID_API_KEY = os.environ.get('RAPID_API_KEY')
-SOFASCORE_SEASON_ID = int(os.environ.get('SOFASCORE_SEASON_ID'))
-SOFASCORE_TOURNAMENT_ID = int(os.environ.get('SOFASCORE_TOURNAMENT_ID'))
+SOFASCORE_SEASON_ID = int(os.environ.get('SOFASCORE_SEASON_ID', 0))
+SOFASCORE_TOURNAMENT_ID = int(os.environ.get('SOFASCORE_TOURNAMENT_ID', 0))
 
 CELERY_BROKER_URL = 'pyamqp://guest@localhost//'
 
 CELERY_TIMEZONE = 'America/Bahia'
 CELERY_RESULT_BACKEND = 'django-db'
-CELERY_BEAT_SCHEDULE = {
-    'atualizar-partidas-ao-vivo': {
-        'task': 'partidas.atualizar_partidas_ao_vivo',
-        'schedule': 120.0,
-    },
-}

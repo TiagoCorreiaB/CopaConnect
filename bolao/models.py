@@ -59,18 +59,10 @@ class Palpite(models.Model):
             MaxValueValidator(99, 'O valor do placar não pode ser superior a 99')
         ]
     )
-    valor = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        validators=[
-            MinValueValidator(1, 'O valor do palpite não pode ser inferior a 1'),
-        ]
-    )
     data = models.DateTimeField(auto_now_add=True)
     dono = models.ForeignKey(Usuario, related_name='palpites', on_delete=models.CASCADE)
     bolao = models.ForeignKey(Bolao, related_name='palpites', on_delete=models.CASCADE)
     pontuacao = models.IntegerField(null=True, blank=True)
-    valor_pontuacao = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     
     class Meta:
         verbose_name = 'Palpite'
