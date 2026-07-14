@@ -68,6 +68,13 @@ class BolaoReadModelSerializer(serializers.ModelSerializer):
     
     def get_quantidade_usuarios(self, obj):
         return obj.usuarios.count()
+    
+class BolaoResumidoSerializer(serializers.ModelSerializer):
+    partida = PartidaModelSerializer(read_only=True)
+
+    class Meta:
+        model = Bolao
+        fields = ['id', 'nome', 'status', 'partida']
 
 class PalpiteWriteModelSerializer(serializers.ModelSerializer):
     class Meta:
@@ -117,4 +124,4 @@ class PalpiteReadModelSerializer(serializers.ModelSerializer):
         fields = ['id','placar_1','placar_2','valor','data','dono','bolao','pontuacao','valor_pontuacao']
 
     dono = UsuarioReadModelSerializer(read_only=True)
-    bolao = BolaoReadModelSerializer(read_only=True)
+    bolao = BolaoResumidoSerializer(read_only=True)

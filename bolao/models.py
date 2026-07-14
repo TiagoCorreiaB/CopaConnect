@@ -5,7 +5,7 @@ from partidas.models import Partida
 
 class Bolao(models.Model):
     class Status(models.TextChoices):
-        INICIADO = 'IN','Iniciado'
+        ABERTO = 'AB','Aberto'
         FINALIZADO = 'FI', 'Finalizado'
         
     nome = models.CharField(max_length=50)
@@ -26,7 +26,7 @@ class Bolao(models.Model):
         max_length=2,
         choices=Status.choices,
         verbose_name='Status',
-        default=Status.INICIADO
+        default=Status.ABERTO
     )
     usuarios = models.ManyToManyField(
         Usuario,
