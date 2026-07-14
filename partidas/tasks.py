@@ -51,11 +51,75 @@ FASE_TRADUCAO = {
     'Round of 32': 'Dezesseis avos de final',
     'Round of 16': 'Oitavas de final',
     'Quarterfinals': 'Quartas de final',
+    'Quarterfinal': 'Quartas de final',
     'Semifinals': 'Semifinais',
+    'Semifinal': 'Semifinais',
     'Final': 'Final',
     '3rd place': 'Disputa de 3º lugar',
     'Third place': 'Disputa de 3º lugar',
 }
+
+TIMES_TRADUCAO = {
+    'Germany': 'Alemanha',
+    'Paraguay': 'Paraguai',
+    'France': 'França',
+    'Sweden': 'Suécia',
+    'South Africa': 'África do Sul',
+    'Canada': 'Canadá',
+    'Netherlands': 'Holanda',
+    'Morocco': 'Marrocos',
+    'Portugal': 'Portugal',
+    'Croatia': 'Croácia',
+    'Spain': 'Espanha',
+    'Austria': 'Áustria',
+    'Brazil': 'Brasil',
+    'Argentina': 'Argentina',
+    'Italy': 'Itália',
+    'England': 'Inglaterra',
+    'Belgium': 'Bélgica',
+    'Uruguay': 'Uruguai',
+    'Switzerland': 'Suíça',
+    'Senegal': 'Senegal',
+    'USA': 'Estados Unidos',
+    'United States': 'Estados Unidos',
+    'Mexico': 'México',
+    'Poland': 'Polônia',
+    'Australia': 'Austrália',
+    'Japan': 'Japão',
+    'South Korea': 'Coreia do Sul',
+    'Korea Republic': 'Coreia do Sul',
+    'Saudi Arabia': 'Arábia Saudita',
+    'Qatar': 'Catar',
+    'Ecuador': 'Equador',
+    'Iran': 'Irã',
+    'Wales': 'País de Gales',
+    'Denmark': 'Dinamarca',
+    'Tunisia': 'Tunísia',
+    'Costa Rica': 'Costa Rica',
+    'Cameroon': 'Camarões',
+    'Serbia': 'Sérvia',
+    'Ghana': 'Gana',
+    'Norway': 'Noruega',
+    "Côte d'Ivoire": "Costa do Marfim",
+    'DR Congo': 'RD Congo',
+    'Egypt': 'Egito',
+    'Algeria': 'Argélia',
+    'Colombia': 'Colômbia',
+    'Bosnia & Herzegovina': 'Bósnia e Herzegovina',
+    'Cabo Verde': 'Cabo Verde',
+}
+
+
+def _traduzir_time(name):
+    if not name:
+        return name
+    if name in TIMES_TRADUCAO:
+        return TIMES_TRADUCAO[name]
+    if name.startswith('W') and name[1:].isdigit():
+        return f'Vencedor {name[1:]}'
+    if name.startswith('L') and name[1:].isdigit():
+        return f'Perdedor {name[1:]}'
+    return name
 
 
 def _get_headers():
@@ -327,8 +391,11 @@ def importar_partidas():
                         )
                         continue
 
-                    time_1 = participants[0].get('team', {}).get('name', 'Desconhecido')
-                    time_2 = participants[1].get('team', {}).get('name', 'Desconhecido')
+                    name_1 = participants[0].get('team', {}).get('name', 'Desconhecido')
+                    name_2 = participants[1].get('team', {}).get('name', 'Desconhecido')
+
+                    time_1 = _traduzir_time(name_1)
+                    time_2 = _traduzir_time(name_2)
 
                     is_finished = block.get('finished', False)
                     placar_1 = _parse_placar(block.get('homeTeamScore'))
