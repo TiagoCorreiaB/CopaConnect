@@ -58,7 +58,7 @@ class BolaoWriteModelSerializer(serializers.ModelSerializer):
 class BolaoReadModelSerializer(serializers.ModelSerializer):
     class Meta:
         model = Bolao
-        fields = ['id','nome','descricao','partida','vencedor','status','usuarios','dono']
+        fields = ['id','nome','descricao','partida','vencedor','status','usuarios','dono','quantidade_usuarios']
 
     quantidade_usuarios = serializers.SerializerMethodField(read_only=True)
     dono = UsuarioReadModelSerializer(read_only=True)
@@ -116,5 +116,5 @@ class PalpiteReadModelSerializer(serializers.ModelSerializer):
         model = Palpite
         fields = ['id','placar_1','placar_2','valor','data','dono','bolao','pontuacao','valor_pontuacao']
 
-    usuario = UsuarioReadModelSerializer(read_only=True)
+    dono = UsuarioReadModelSerializer(read_only=True)
     bolao = BolaoReadModelSerializer(read_only=True)
