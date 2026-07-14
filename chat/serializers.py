@@ -48,10 +48,16 @@ class SalaModelSerializer(serializers.ModelSerializer):
         ]
 
     def get_quantidade_usuarios(self, obj: Sala):
+        if hasattr(obj, 'quantidade_usuarios_count'):
+            return obj.quantidade_usuarios_count
         return obj.usuarios.count()
 
     def get_ultimo_comentario(self, obj: Sala):
-        ultimo = obj.comentarios.order_by('data_envio').last()
+        if hasattr(obj, 'ultimo_comentario_prefetched'):
+            ultimo = obj.ultimo_comentario_prefetched[0] if obj.ultimo_comentario_prefetched else None
+        else:
+            ultimo = obj.comentarios.order_by('data_envio').last()
+            
         if ultimo is None:
             return None
-        return ComentarioReadModelSerializer(ultimo).data
+        return ComentarioReadModelSerializer(ultimo, context=self.context).data

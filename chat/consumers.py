@@ -2,22 +2,27 @@ from channels.db import database_sync_to_async
 from djangochannelsrestframework.generics import GenericAsyncAPIConsumer
 from djangochannelsrestframework.observer import model_observer
 from djangochannelsrestframework.observer.generics import ObserverModelInstanceMixin, action
-from djangochannelsrestframework.mixins import CreateModelMixin, ListModelMixin
+from djangochannelsrestframework.mixins import ListModelMixin
 from .models import Sala, Comentario
 from usuarios.models import Usuario
 from .serializers import ComentarioReadModelSerializer, SalaModelSerializer
 
-class SalaConsumer(ListModelMixin, CreateModelMixin, ObserverModelInstanceMixin, GenericAsyncAPIConsumer):
-    queryset = Sala.objects.all()
+class SalaConsumer(ListModelMixin, ObserverModelInstanceMixin, GenericAsyncAPIConsumer):
     serializer_class = SalaModelSerializer
     lookup_field = 'pk'
 
-    @action()
-    async def criar(self, data: dict, request_id: str, **kwargs):
-        response, status = await super().create(data, **kwargs)
-        sala_pk = response['pk']
-        await self.entrar(pk=sala_pk, request_id=request_id)
-        return response, status
+    def get_queryset(self):
+        from django.db.models import Count, Prefetch
+        return Sala.objects.select_related('partida').prefetch_related(
+            'usuarios',
+            Prefetch(
+                'comentarios',
+                queryset=Comentario.objects.select_related('usuario').order_by('-data_envio'),
+                to_attr='ultimo_comentario_prefetched'
+            )
+        ).annotate(
+            quantidade_usuarios_count=Count('usuarios', distinct=True)
+        )
     
     @action()
     async def entrar(self, pk, request_id, **kwargs):
