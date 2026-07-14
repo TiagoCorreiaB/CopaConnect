@@ -108,10 +108,13 @@ class BolaoModelViewSet(viewsets.ModelViewSet):
 
         bolao.usuarios.remove(usuario)
 
-        Palpite.objects.filter(bolao=bolao, dono=usuario).delete()
+        deleted_count, _ = Palpite.objects.filter(bolao=bolao, dono=usuario).delete()
+        msg = f'Usuário {usuario.first_name} removido.'
+        if deleted_count > 0:
+            msg += ' O palpite dele foi apagado.'
         
         return Response(
-            {'detalhe': f'Usuário {usuario.first_name} removido com sucesso do bolão!'},
+            {'detalhe': msg},
             status=status.HTTP_200_OK
         )
     
@@ -133,10 +136,13 @@ class BolaoModelViewSet(viewsets.ModelViewSet):
 
         bolao.usuarios.remove(request.user)
 
-        Palpite.objects.filter(bolao=bolao, dono=request.user).delete()
+        deleted_count, _ = Palpite.objects.filter(bolao=bolao, dono=request.user).delete()
+        msg = 'Você saiu do bolão com sucesso.'
+        if deleted_count > 0:
+            msg += ' Seu palpite foi apagado.'
         
         return Response(
-            {'detalhe': 'Você saiu do bolão com sucesso.'},
+            {'detalhe': msg},
             status=status.HTTP_200_OK
         )
 
