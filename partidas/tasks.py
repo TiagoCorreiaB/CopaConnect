@@ -342,6 +342,15 @@ def atualizar_partidas():
             partidas_atualizadas,
             ['placar_1', 'placar_2', 'status', 'tempo']
         )
+        
+        partidas_finalizadas = [p for p in partidas_atualizadas if p.status == Partida.Status.FINALIZADA]
+        if partidas_finalizadas:
+            try:
+                from chat.models import Sala
+                Sala.objects.filter(partida__in=partidas_finalizadas).update(status=Sala.Status.FECHADA)
+            except Exception as e:
+                logger.error(f'Erro ao fechar salas das partidas finalizadas no bulk update: {e}')
+
         if partidas_notificaveis:
             try:
                 from notificacao.signals import criar_notificacoes_para_partidas
