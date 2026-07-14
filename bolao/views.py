@@ -61,6 +61,18 @@ class BolaoModelViewSet(viewsets.ModelViewSet):
                 {'detalhe': 'Este usuário já faz parte do bolão.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        
+        sao_amigos = Amizade.objects.filter(
+            status=Amizade.Status.ACEITO
+        ).filter(
+            Q(usuario=request.user, amigo=usuario) | Q(usuario=usuario, amigo=request.user)
+        ).exists()
+
+        if not sao_amigos:
+            return Response(
+                {'detalhe': 'Você só pode adicionar usuários que estejam na sua lista de amigos.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
         bolao.usuarios.add(usuario)
         
@@ -92,18 +104,6 @@ class BolaoModelViewSet(viewsets.ModelViewSet):
             return Response(
                 {'detalhe': 'Este usuário não faz parte do bolão.'},
                 status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        sao_amigos = Amizade.objects.filter(
-            status=Amizade.Status.ACEITO
-        ).filter(
-            Q(usuario=request.user, amigo=usuario) | Q(usuario=usuario, amigo=request.user)
-        ).exists()
-
-        if not sao_amigos:
-            return Response(
-                {'detalhe': 'Você só pode adicionar usuários que estejam na sua lista de amigos.'},
-                status=status.HTTP_403_FORBIDDEN
             )
 
         bolao.usuarios.remove(usuario)
