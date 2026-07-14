@@ -1,18 +1,15 @@
-import json
-
 from channels.db import database_sync_to_async
 from djangochannelsrestframework.generics import GenericAsyncAPIConsumer
 from djangochannelsrestframework.observer import model_observer
 from djangochannelsrestframework.observer.generics import ObserverModelInstanceMixin, action
 from djangochannelsrestframework.mixins import CreateModelMixin, ListModelMixin
-
 from .models import Sala, Comentario
 from usuarios.models import Usuario
-from .serializers import ComentarioSerializer, SalaSerializer
+from .serializers import ComentarioReadModelSerializer, SalaModelSerializer
 
 class SalaConsumer(ListModelMixin, CreateModelMixin, ObserverModelInstanceMixin, GenericAsyncAPIConsumer):
     queryset = Sala.objects.all()
-    serializer_class = SalaSerializer
+    serializer_class = SalaModelSerializer
     lookup_field = 'pk'
 
     @action()
@@ -85,7 +82,7 @@ class SalaConsumer(ListModelMixin, CreateModelMixin, ObserverModelInstanceMixin,
     @atividade_comentario.serializer
     def atividade_comentario(self, comentario: Comentario, acao, **kwargs):
         return dict(
-            dados=ComentarioSerializer(comentario).data,
+            dados=ComentarioReadModelSerializer(comentario).data,
             acao=acao.value,
             pk=comentario.pk
         )
