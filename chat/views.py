@@ -1,7 +1,13 @@
 from rest_framework import viewsets
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.pagination import CursorPagination
 from .models import Sala, Comentario
 from .serializers import SalaModelSerializer, ComentarioWriteModelSerializer, ComentarioReadModelSerializer
+
+
+class ComentarioCursorPagination(CursorPagination):
+    page_size = 50
+    ordering = '-data_envio'
 
 class SalaReadOnlyModelViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Sala.objects.all()
@@ -9,7 +15,8 @@ class SalaReadOnlyModelViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_fields = ['status']
 
 class ComentarioModelViewSet(viewsets.ModelViewSet):
-    queryset = Comentario.objects.all().order_by('data_envio')
+    queryset = Comentario.objects.all()
+    pagination_class = ComentarioCursorPagination
     filterset_fields = ['sala']
     
     def get_serializer_class(self):

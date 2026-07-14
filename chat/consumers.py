@@ -49,8 +49,24 @@ class SalaConsumer(ListModelMixin, CreateModelMixin, ObserverModelInstanceMixin,
     async def criar_comentario(self, comentario, sala, **kwargs):
         if not self.scope['user'].is_authenticated:
             return
+
         sala: Sala = await database_sync_to_async(self.get_object)(pk=sala)
+
+        if sala.status == Sala.Status.FECHADA:
+            await self.send_json({
+                'erro': 'Não é possível enviar comentários em uma sala fechada.'
+            })
+            return
+
         usuario = await database_sync_to_async(Usuario.objects.get)(pk=self.scope['user'].pk)
+
+        pertence = await database_sync_to_async(sala.usuarios.filter(pk=usuario.pk).exists)()
+        if not pertence:
+            await self.send_json({
+                'erro': 'Você precisa estar na sala para enviar comentários.'
+            })
+            return
+
         await database_sync_to_async(Comentario.objects.create)(
             sala=sala,
             usuario=usuario,

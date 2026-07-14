@@ -9,6 +9,20 @@ class ComentarioWriteModelSerializer(serializers.ModelSerializer):
         fields = ['id', 'sala', 'usuario', 'texto', 'data_envio']
         read_only_fields = ['usuario', 'data_envio']
 
+    def validate_sala(self, value):
+        if value.status == Sala.Status.FECHADA:
+            raise serializers.ValidationError(
+                'Não é possível enviar comentários em uma sala fechada.'
+            )
+
+        request = self.context.get('request')
+        if request and not value.usuarios.filter(pk=request.user.pk).exists():
+            raise serializers.ValidationError(
+                'Você precisa estar na sala para enviar comentários.'
+            )
+
+        return value
+
 class ComentarioReadModelSerializer(serializers.ModelSerializer):
     usuario = UsuarioReadModelSerializer(read_only=True)
     data_envio_formatada = serializers.SerializerMethodField(read_only=True)
