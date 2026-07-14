@@ -47,6 +47,16 @@ INCIDENTE_TRADUCAO = {
     'Handball': 'Toque de mão',
 }
 
+FASE_TRADUCAO = {
+    'Round of 32': 'Dezesseis avos de final',
+    'Round of 16': 'Oitavas de final',
+    'Quarterfinals': 'Quartas de final',
+    'Semifinals': 'Semifinais',
+    'Final': 'Final',
+    '3rd place': 'Disputa de 3º lugar',
+    'Third place': 'Disputa de 3º lugar',
+}
+
 
 def _get_headers():
     api_key = settings.RAPID_API_KEY
@@ -57,6 +67,38 @@ def _get_headers():
         'x-rapidapi-host': 'sofascore6.p.rapidapi.com',
         'Content-Type': 'application/json',
     }
+
+
+def _parse_placar(score_str):
+    if not score_str:
+        return None
+    try:
+        return int(score_str.split()[0])
+    except (ValueError, IndexError):
+        return None
+
+
+def _buscar_cup_trees(headers):
+    season_id = settings.SOFASCORE_SEASON_ID
+    tournament_id = settings.SOFASCORE_TOURNAMENT_ID
+
+    url = f'{BASE_URL}/v1/unique-tournament/season/cup-trees'
+    params = {
+        'season_id': season_id,
+        'unique_tournament_id': tournament_id,
+    }
+
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=30)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as e:
+        logger.error(f'Erro ao buscar cup-trees: {e}')
+        return None
+    except ValueError:
+        logger.error('A API cup-trees não retornou um JSON válido.')
+        return None
+
 
 
 def _buscar_incidentes(event_id, headers):
@@ -123,21 +165,6 @@ def _buscar_incidentes(event_id, headers):
     }
 
 
-def _parse_events(response_data):
-    if isinstance(response_data, list):
-        return response_data
-    return response_data.get('events', [])
-
-
-def _extrair_rodada_numero(fase):
-    if not fase:
-        return None
-    try:
-        return int(fase.split()[-1])
-    except (ValueError, IndexError):
-        return None
-
-
 @shared_task()
 def atualizar_incidentes(partida_id_api):
     headers = _get_headers()
@@ -191,71 +218,53 @@ def atualizar_partidas():
 
     headers = _get_headers()
 
-    season_id = settings.SOFASCORE_SEASON_ID
-    tournament_id = settings.SOFASCORE_TOURNAMENT_ID
+    partidas_por_id = {p.id_api: p for p in partidas}
 
-    rounds_to_check = {p.rodada for p in partidas if p.rodada is not None}
+    cup_trees_data = _buscar_cup_trees(headers)
 
-    if not rounds_to_check:
-        for p in partidas:
-            num = _extrair_rodada_numero(p.fase)
-            if num is not None:
-                rounds_to_check.add(num)
-
-    round_events = {}
-
-    for round_num in rounds_to_check:
-        url = f'{BASE_URL}/v1/unique-tournament/season/round/matches'
-        params = {
-            'round': round_num,
-            'season_id': season_id,
-            'unique_tournament_id': tournament_id,
-        }
-
-        try:
-            response = requests.get(url, headers=headers, params=params, timeout=15)
-            response.raise_for_status()
-            data = response.json()
-        except requests.RequestException as e:
-            logger.error(f'Erro ao buscar round {round_num}: {e}')
-            continue
-        except ValueError:
-            logger.error(f'A API não retornou um JSON válido para o round {round_num}')
-            continue
-
-        events = _parse_events(data)
-        for event in events:
-            round_events[event['id']] = event
+    blocos_por_match_id = {}
+    if cup_trees_data:
+        trees = cup_trees_data if isinstance(cup_trees_data, list) else [cup_trees_data]
+        for tree in trees:
+            for rnd in tree.get('rounds', []):
+                for block in rnd.get('blocks', []):
+                    match_id = block.get('matchId')
+                    if match_id:
+                        blocos_por_match_id[match_id] = block
 
     partidas_atualizadas = []
     partidas_notificaveis = []
 
     for partida in partidas:
-        event = round_events.get(partida.id_api)
-        if not event:
+        block = blocos_por_match_id.get(partida.id_api)
+
+        if not block:
+            logger.warning(f'Partida {partida.id_api} não encontrada nos dados do cup-trees.')
             continue
 
         old_placar_1 = partida.placar_1
         old_placar_2 = partida.placar_2
         old_status = partida.status
 
-        home_score = event.get('homeScore') or {}
-        away_score = event.get('awayScore') or {}
-        partida.placar_1 = home_score.get('current') if isinstance(home_score, dict) else None
-        partida.placar_2 = away_score.get('current') if isinstance(away_score, dict) else None
+        partida.placar_1 = _parse_placar(block.get('homeTeamScore'))
+        partida.placar_2 = _parse_placar(block.get('awayTeamScore'))
 
-        status_info = event.get('status', {})
-        status_type = status_info.get('type', '').lower()
-        partida.status = STATUS_MAP.get(status_type, partida.status)
+        is_finished = block.get('finished', False)
+        if is_finished:
+            partida.status = Partida.Status.FINALIZADA
+            partida.tempo = 'Encerrado'
+        elif partida.placar_1 is not None and partida.placar_2 is not None:
+            if partida.status == Partida.Status.NAO_INICIADA and partida.data <= agora:
+                partida.status = Partida.Status.EM_ANDAMENTO
 
-        desc_original = status_info.get('description', '')
-        partida.tempo = TEMPO_TRADUCAO.get(desc_original, desc_original)
-
-        if status_type in ('inprogress', 'finished'):
-            atualizar_incidentes.delay(partida.id_api)
+        if partida.status in (Partida.Status.EM_ANDAMENTO, Partida.Status.FINALIZADA):
+            try:
+                atualizar_incidentes.apply_async(args=[partida.id_api], retry=False)
+            except Exception as e:
+                logger.warning(f'Celery offline, pulando incidentes em background para {partida.id_api}: {e}')
 
         partidas_atualizadas.append(partida)
-        
+
         if old_placar_1 != partida.placar_1 or old_placar_2 != partida.placar_2 or old_status != partida.status:
             partidas_notificaveis.append(partida)
 
@@ -274,101 +283,106 @@ def atualizar_partidas():
                 from notificacao.signals import criar_notificacoes_para_partidas
                 criar_notificacoes_para_partidas(partidas_notificaveis)
             except Exception as e:
-                logger.error(f"Erro ao disparar notificações de partidas atualizadas: {e}")
+                logger.error(f'Erro ao disparar notificações de partidas atualizadas: {e}')
 
     return f'{len(partidas_atualizadas)} partida(s) atualizada(s).'
 
 
 @shared_task()
-def importar_partidas(rounds):
+def importar_partidas():
     headers = _get_headers()
 
-    season_id = settings.SOFASCORE_SEASON_ID
-    tournament_id = settings.SOFASCORE_TOURNAMENT_ID
+    logger.info('Buscando partidas via cup-trees...')
+    cup_trees_data = _buscar_cup_trees(headers)
+
+    if not cup_trees_data:
+        logger.error('Não foi possível obter dados do cup-trees.')
+        return 'Erro ao buscar dados do cup-trees.'
+
+    trees = cup_trees_data if isinstance(cup_trees_data, list) else [cup_trees_data]
 
     total_criadas = 0
     total_atualizadas = 0
 
-    for round_num in rounds:
-        logger.info(f'Buscando partidas do round {round_num}...')
+    for tree in trees:
+        rounds = tree.get('rounds', [])
 
-        url = f'{BASE_URL}/v1/unique-tournament/season/round/matches'
-        params = {
-            'round': round_num,
-            'season_id': season_id,
-            'unique_tournament_id': tournament_id,
-        }
+        for round_index, rnd in enumerate(rounds, start=1):
+            fase_original = rnd.get('description', f'Fase {round_index}')
+            fase = FASE_TRADUCAO.get(fase_original, fase_original)
+            blocks = rnd.get('blocks', [])
 
-        try:
-            response = requests.get(url, headers=headers, params=params, timeout=15)
-            response.raise_for_status()
-            data = response.json()
-        except requests.RequestException as e:
-            logger.error(f'Erro ao buscar round {round_num}: {e}')
-            continue
-        except ValueError:
-            logger.error(f'A API não retornou um JSON válido para o round {round_num}')
-            continue
+            logger.info(f'Processando fase: {fase} ({len(blocks)} partidas)...')
 
-        events = _parse_events(data)
+            for block in blocks:
+                try:
+                    match_id = block.get('matchId')
+                    if not match_id:
+                        continue
 
-        if not events:
-            logger.warning(f'Nenhuma partida encontrada no round {round_num}.')
-            continue
+                    participants = block.get('participants', [])
+                    if len(participants) < 2:
+                        logger.warning(
+                            f'Partida {match_id} com menos de 2 participantes, ignorando.'
+                        )
+                        continue
 
-        for event in events:
-            try:
-                id_api = event['id']
-                time_1 = event.get('homeTeam', {}).get('name', 'Desconhecido')
-                time_2 = event.get('awayTeam', {}).get('name', 'Desconhecido')
+                    time_1 = participants[0].get('team', {}).get('name', 'Desconhecido')
+                    time_2 = participants[1].get('team', {}).get('name', 'Desconhecido')
 
-                home_score = event.get('homeScore') or {}
-                away_score = event.get('awayScore') or {}
-                placar_1 = home_score.get('current') if isinstance(home_score, dict) else None
-                placar_2 = away_score.get('current') if isinstance(away_score, dict) else None
+                    is_finished = block.get('finished', False)
+                    placar_1 = _parse_placar(block.get('homeTeamScore'))
+                    placar_2 = _parse_placar(block.get('awayTeamScore'))
 
-                timestamp = event.get('timestamp')
-                data_partida = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+                    status = Partida.Status.FINALIZADA if is_finished else Partida.Status.NAO_INICIADA
+                    tempo = 'Encerrado' if is_finished else None
+                    data_partida = dj_timezone.now()
 
-                status_info = event.get('status', {})
-                status_type = status_info.get('type', '').lower()
-                status = STATUS_MAP.get(status_type, Partida.Status.NAO_INICIADA)
+                    partida_existente = Partida.objects.filter(id_api=match_id).first()
+                    estatisticas_atuais = (
+                        partida_existente.estatisticas_finais if partida_existente else None
+                    )
 
-                desc_original = status_info.get('description', '')
-                tempo = TEMPO_TRADUCAO.get(desc_original, desc_original) if desc_original else None
+                    if partida_existente:
+                        data_partida = partida_existente.data
 
-                partida_existente = Partida.objects.filter(id_api=id_api).first()
-                estatisticas_atuais = partida_existente.estatisticas_finais if partida_existente else None
+                    _, created = Partida.objects.update_or_create(
+                        id_api=match_id,
+                        defaults={
+                            'time_1': time_1,
+                            'time_2': time_2,
+                            'placar_1': placar_1,
+                            'placar_2': placar_2,
+                            'data': data_partida,
+                            'status': status,
+                            'tempo': tempo,
+                            'estatisticas_finais': estatisticas_atuais,
+                            'fase': fase,
+                        },
+                    )
 
-                _, created = Partida.objects.update_or_create(
-                    id_api=id_api,
-                    defaults={
-                        'time_1': time_1,
-                        'time_2': time_2,
-                        'placar_1': placar_1,
-                        'placar_2': placar_2,
-                        'data': data_partida,
-                        'status': status,
-                        'tempo': tempo,
-                        'estatisticas_finais': estatisticas_atuais,
-                        'fase': f'Rodada {round_num}',
-                        'rodada': round_num,
-                    },
-                )
+                    if status in (Partida.Status.EM_ANDAMENTO, Partida.Status.FINALIZADA):
+                        if not (status == Partida.Status.FINALIZADA and estatisticas_atuais):
+                            try:
+                                atualizar_incidentes.apply_async(args=[match_id], retry=False)
+                            except Exception as e:
+                                logger.warning(f'Celery offline, pulando incidentes em background para {match_id}: {e}')
 
-                if status_type in ('inprogress', 'finished'):
-                    if not (status_type == 'finished' and estatisticas_atuais):
-                        atualizar_incidentes.delay(id_api)
+                    if created:
+                        total_criadas += 1
+                    else:
+                        total_atualizadas += 1
 
-                if created:
-                    total_criadas += 1
-                else:
-                    total_atualizadas += 1
+                    logger.info(
+                        f'  {time_1} x {time_2} '
+                        f'(ID: {match_id}, Fase: {fase}) - '
+                        f'{"criada" if created else "atualizada"}'
+                    )
 
-            except (KeyError, TypeError, ValueError) as e:
-                logger.warning(f'Erro ao processar evento {event.get("id", "?")}: {e}')
-
-        logger.info(f'Round {round_num}: {len(events)} partidas processadas.')
+                except (KeyError, TypeError, ValueError) as e:
+                    logger.warning(
+                        f'Erro ao processar partida {block.get("matchId", "?")}: {e}'
+                    )
 
     resultado = f'{total_criadas} criadas, {total_atualizadas} atualizadas.'
     logger.info(f'Importação concluída! {resultado}')
