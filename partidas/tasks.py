@@ -228,11 +228,16 @@ def atualizar_partidas():
             round_events[event['id']] = event
 
     partidas_atualizadas = []
+    partidas_notificaveis = []
 
     for partida in partidas:
         event = round_events.get(partida.id_api)
         if not event:
             continue
+
+        old_placar_1 = partida.placar_1
+        old_placar_2 = partida.placar_2
+        old_status = partida.status
 
         home_score = event.get('homeScore') or {}
         away_score = event.get('awayScore') or {}
@@ -250,6 +255,10 @@ def atualizar_partidas():
             atualizar_incidentes.delay(partida.id_api)
 
         partidas_atualizadas.append(partida)
+        
+        if old_placar_1 != partida.placar_1 or old_placar_2 != partida.placar_2 or old_status != partida.status:
+            partidas_notificaveis.append(partida)
+
         logger.info(
             f'Partida {partida.time_1} x {partida.time_2}: '
             f'{partida.placar_1}-{partida.placar_2} ({partida.tempo})'
@@ -260,6 +269,12 @@ def atualizar_partidas():
             partidas_atualizadas,
             ['placar_1', 'placar_2', 'status', 'tempo']
         )
+        if partidas_notificaveis:
+            try:
+                from notificacao.signals import criar_notificacoes_para_partidas
+                criar_notificacoes_para_partidas(partidas_notificaveis)
+            except Exception as e:
+                logger.error(f"Erro ao disparar notificações de partidas atualizadas: {e}")
 
     return f'{len(partidas_atualizadas)} partida(s) atualizada(s).'
 
