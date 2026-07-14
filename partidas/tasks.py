@@ -351,6 +351,12 @@ def atualizar_partidas():
             except Exception as e:
                 logger.error(f'Erro ao fechar salas das partidas finalizadas no bulk update: {e}')
 
+            try:
+                from bolao.signals import atualizar_pontos_e_vencedores_para_partidas
+                atualizar_pontos_e_vencedores_para_partidas(partidas_finalizadas)
+            except Exception as e:
+                logger.error(f'Erro ao atualizar pontos de palpites no bulk update: {e}')
+
         if partidas_notificaveis:
             try:
                 from notificacao.signals import criar_notificacoes_para_partidas
