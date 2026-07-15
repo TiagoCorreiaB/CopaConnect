@@ -23,6 +23,12 @@ class UsuarioModelViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
     filterset_class =  UsuarioFilter
 
+    def get_permissions(self):
+        if self.action == 'create':
+            from rest_framework.permissions import AllowAny
+            return [AllowAny()]
+        return super().get_permissions()
+
     def get_serializer_class(self):
         if self.action in ['list', 'retrieve']:
             return UsuarioReadModelSerializer
