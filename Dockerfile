@@ -16,3 +16,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . /app/
 
 EXPOSE 8000
+
+CMD python manage.py migrate && python manage.py collectstatic --noinput && python cria_admin.py && daphne -b 0.0.0.0 -p 8000 core.asgi:application
