@@ -31,6 +31,20 @@ DEBUG = int(os.environ.get('DJANGO_DEBUG', default=0))
 
 ALLOWED_HOSTS = str(os.environ.get('DJANGO_ALLOWED_HOSTS')).split(',')
 
+CSRF_TRUSTED_ORIGINS = []
+csrf_env = os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS')
+if csrf_env:
+    CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in csrf_env.split(',') if origin]
+else:
+    for host in ALLOWED_HOSTS:
+        host = host.strip()
+        if host:
+            if host in ['localhost', '127.0.0.1', '0.0.0.0']:
+                CSRF_TRUSTED_ORIGINS.append(f"http://{host}")
+                CSRF_TRUSTED_ORIGINS.append(f"http://{host}:8000")
+            else:
+                CSRF_TRUSTED_ORIGINS.append(f"https://{host}")
+
 
 # Application definition
 
