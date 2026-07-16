@@ -10,7 +10,9 @@ class Partida(models.Model):
 
     id_api = models.IntegerField(unique=True)
     time_1 = models.CharField(max_length=100)
+    time_1_imagem = models.URLField(max_length=500, null=True, blank=True)
     time_2 = models.CharField(max_length=100)
+    time_2_imagem = models.URLField(max_length=500, null=True, blank=True)
     placar_1 = models.IntegerField(null=True, blank=True)
     placar_2 = models.IntegerField(null=True, blank=True)
     data = models.DateTimeField()
