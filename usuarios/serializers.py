@@ -5,14 +5,12 @@ from django.contrib.auth.hashers import make_password
 from .models import Usuario, Perfil, Amizade
 
 class UsuarioWriteModelSerializer(serializers.ModelSerializer):
-    nome = serializers.CharField(source='first_name', required=True)
-    sobrenome = serializers.CharField(source='last_name', required=True)
     usuario = serializers.CharField(source='username')
     senha = serializers.CharField(source='password', write_only=True)
 
     class Meta:
         model = Usuario
-        fields = ['id','usuario','nome','sobrenome','senha','email', 'telefone']
+        fields = ['id','usuario','senha','email', 'telefone']
 
     def validate_senha(self, value):
         try:
@@ -50,13 +48,20 @@ class UsuarioWriteModelSerializer(serializers.ModelSerializer):
         return value
 
 class UsuarioReadModelSerializer(serializers.ModelSerializer):
-    nome = serializers.ReadOnlyField(source='first_name')
-    sobrenome = serializers.ReadOnlyField(source='last_name')
     usuario = serializers.ReadOnlyField(source='username')
+    foto = serializers.SerializerMethodField()
 
     class Meta:
         model = Usuario
-        fields = ['id','usuario','nome','sobrenome']
+        fields = ['id','usuario','foto']
+
+    def get_foto(self, obj):
+        try:
+            if obj.perfil and obj.perfil.foto:
+                return obj.perfil.foto.url
+        except Exception:
+            pass
+        return None
 
 class PerfilWriteModelSerializer(serializers.ModelSerializer):
     class Meta:

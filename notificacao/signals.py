@@ -8,17 +8,19 @@ from notificacao.models import Notificacao
 @receiver(post_save, sender=Amizade)
 def criar_notificacao_pedido_amizade(sender, instance, created, **kwargs):
     if created and instance.status == Amizade.Status.PENDENTE:
+        remetente = getattr(getattr(instance.usuario, 'perfil', None), 'apelido', None) or instance.usuario.username
         Notificacao.objects.create(
             usuario=instance.amigo,
             titulo="Novo pedido de amizade",
-            mensagem=f"{instance.usuario.first_name or instance.usuario.username} enviou um pedido de amizade para você.",
+            mensagem=f"{remetente} enviou um pedido de amizade para você.",
             url=f"/api/copaconnect/v1/amizades/{instance.id}/"
         )
     elif not created and instance.status == Amizade.Status.ACEITO:
+        destinatario = getattr(getattr(instance.amigo, 'perfil', None), 'apelido', None) or instance.amigo.username
         Notificacao.objects.create(
             usuario=instance.usuario,
             titulo="Pedido de amizade aceito",
-            mensagem=f"{instance.amigo.first_name or instance.amigo.username} aceitou o seu pedido de amizade.",
+            mensagem=f"{destinatario} aceitou o seu pedido de amizade.",
             url=f"/api/copaconnect/v1/perfis/{instance.amigo.perfil.id}/" if hasattr(instance.amigo, 'perfil') else None
         )
 
@@ -30,10 +32,11 @@ def criar_notificacao_adicionado_bolao(sender, instance, action, pk_set, **kwarg
                 continue
             try:
                 user = Usuario.objects.get(pk=user_id)
+                dono_nome = getattr(getattr(instance.dono, 'perfil', None), 'apelido', None) or instance.dono.username
                 Notificacao.objects.create(
                     usuario=user,
                     titulo="Adicionado a um bolão",
-                    mensagem=f"Você foi adicionado ao bolão '{instance.nome}' por {instance.dono.first_name or instance.dono.username}.",
+                    mensagem=f"Você foi adicionado ao bolão '{instance.nome}' por {dono_nome}.",
                     url=f"/api/copaconnect/v1/boloes/{instance.id}/"
                 )
             except Usuario.DoesNotExist:
