@@ -32,7 +32,8 @@ class ComentarioReadModelSerializer(serializers.ModelSerializer):
         fields = ['id', 'sala', 'usuario', 'texto', 'data_envio', 'data_envio_formatada']
 
     def get_data_envio_formatada(self, obj: Comentario):
-        return obj.data_envio.strftime('%H:%M')
+        from django.utils import timezone
+        return timezone.localtime(obj.data_envio).strftime('%H:%M')
 
 class SalaModelSerializer(serializers.ModelSerializer):
     partida = PartidaModelSerializer(read_only=True)

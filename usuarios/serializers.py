@@ -106,10 +106,17 @@ class PerfilWriteModelSerializer(serializers.ModelSerializer):
 
 class PerfilReadModelSerializer(serializers.ModelSerializer):
     usuario = UsuarioReadModelSerializer(read_only=True)
+    foto = serializers.SerializerMethodField()
 
     class Meta:
         model = Perfil
         fields = ['id','usuario','foto','apelido','descricao']
+
+    def get_foto(self, obj):
+        try:
+            return obj.foto.url
+        except Exception:
+            return None
 
 class AmizadeWriteModelSerializer(serializers.ModelSerializer):
     class Meta:
