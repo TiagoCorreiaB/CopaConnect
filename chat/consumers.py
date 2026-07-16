@@ -7,11 +7,38 @@ from .models import Sala, Comentario
 from usuarios.models import Usuario
 from .serializers import ComentarioReadModelSerializer, SalaModelSerializer
 
-class SalaConsumer(ListModelMixin, ObserverModelInstanceMixin, GenericAsyncAPIConsumer):
+class SalaConsumer(ListModelMixin, GenericAsyncAPIConsumer):
     serializer_class = SalaModelSerializer
     lookup_field = 'pk'
 
-    def get_queryset(self):
+    async def connect(self):
+        await super().connect()
+        if self.scope['user'].is_authenticated:
+            await self.set_online_status(self.scope['user'], True)
+
+    async def disconnect(self, code):
+        if self.scope['user'].is_authenticated:
+            await self.handle_disconnect(self.scope['user'])
+        await super().disconnect(code)
+
+    @database_sync_to_async
+    def set_online_status(self, user, online_state):
+        from django.utils import timezone
+        now = timezone.now()
+        Usuario.objects.filter(pk=user.pk).update(online=online_state, ultima_atividade=now)
+
+    @database_sync_to_async
+    def handle_disconnect(self, user):
+        from django.utils import timezone
+        from usuarios.tasks import verificar_e_definir_offline
+        now = timezone.now()
+        Usuario.objects.filter(pk=user.pk).update(ultima_atividade=now)
+        verificar_e_definir_offline.apply_async(
+            args=[user.pk, now.isoformat()],
+            countdown=120
+        )
+
+    def get_queryset(self, *args, **kwargs):
         from django.db.models import Count, Prefetch
         return Sala.objects.select_related('partida').prefetch_related(
             'usuarios',
@@ -27,7 +54,6 @@ class SalaConsumer(ListModelMixin, ObserverModelInstanceMixin, GenericAsyncAPICo
     @action()
     async def entrar(self, pk, request_id, **kwargs):
         sala = await database_sync_to_async(self.get_object)(pk=pk)
-        await self.subscribe_instance(request_id=request_id, pk=sala.pk)
         await self.atividade_comentario.subscribe(sala=pk, request_id=request_id)
         if self.scope['user'].is_authenticated:
             await self.adicionar(sala)
@@ -37,7 +63,6 @@ class SalaConsumer(ListModelMixin, ObserverModelInstanceMixin, GenericAsyncAPICo
         sala = await database_sync_to_async(self.get_object)(pk=pk)
         if self.scope['user'].is_authenticated:
             await self.remover(sala)
-        await self.unsubscribe_instance(pk=sala.pk)
         await self.atividade_comentario.unsubscribe(sala=sala.pk)
 
     @database_sync_to_async

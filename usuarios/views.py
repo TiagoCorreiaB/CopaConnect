@@ -3,25 +3,16 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework import viewsets, mixins
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.filters import SearchFilter
 from django.db.models import Q
 from django_filters import rest_framework as filters
 from .models import Usuario, Perfil, Amizade
-from .serializers import UsuarioReadModelSerializer, UsuarioWriteModelSerializer, PerfilReadModelSerializer, PerfilWriteModelSerializer, AmizadeReadModelSerializer, AmizadeWriteModelSerializer
-
-class UsuarioFilter(filters.FilterSet):
-    nome = filters.CharFilter(method='filter_por_nome')
-
-    class Meta:
-        model = Usuario
-        fields = ['username'] 
-
-    def filter_por_nome(self, queryset, name, value):
-        return queryset.filter(Q(first_name__icontains=value)|Q(last_name__icontains=value))
-
+from .serializers import UsuarioReadModelSerializer, UsuarioWriteModelSerializer, UsuarioRetrieveModelSerializer, PerfilReadModelSerializer, PerfilWriteModelSerializer, AmizadeReadModelSerializer, AmizadeWriteModelSerializer
 
 class UsuarioModelViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
-    filterset_class =  UsuarioFilter
+    filter_backends = [SearchFilter]
+    search_fields = ['username', 'perfil__apelido']
 
     def get_permissions(self):
         if self.action == 'create':
@@ -30,7 +21,9 @@ class UsuarioModelViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     def get_serializer_class(self):
-        if self.action in ['list', 'retrieve']:
+        if self.action == 'retrieve':
+            return UsuarioRetrieveModelSerializer
+        if self.action == 'list':
             return UsuarioReadModelSerializer
         
         return UsuarioWriteModelSerializer

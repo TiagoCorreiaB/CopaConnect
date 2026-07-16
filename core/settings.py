@@ -161,11 +161,16 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'
 
+REDIS_URL = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
+
+if '?' not in REDIS_URL:
+    REDIS_URL += '?socket_keepalive=true&retry_on_timeout=true&socket_timeout=20'
+
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')],
+            "hosts": [REDIS_URL],
         },
     },
 }

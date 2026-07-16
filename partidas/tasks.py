@@ -6,7 +6,6 @@ from celery import shared_task
 from django.conf import settings
 from django.utils import timezone as dj_timezone
 
-
 from partidas.models import Partida
 
 logger = logging.getLogger(__name__)
@@ -34,7 +33,7 @@ TEMPO_TRADUCAO = {
 }
 
 INCIDENTE_TRADUCAO = {
-    'regular': 'Normal',
+    'regular': 'Gol',
     'penalty': 'Pênalti',
     'ownGoal': 'Gol Contra',
     'yellow': 'Amarelo',
@@ -164,6 +163,22 @@ def _buscar_cup_trees(headers):
         return None
 
 
+def _buscar_detalhes_partida(match_id, headers):
+    url = f'{BASE_URL}/v1/match/details'
+    params = {'match_id': match_id}
+
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=15)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as e:
+        logger.error(f'Erro ao buscar detalhes da partida {match_id}: {e}')
+        return None
+    except ValueError:
+        logger.error(f'A API não retornou um JSON válido para a partida {match_id}')
+        return None
+
+
 
 def _buscar_incidentes(event_id, headers):
     url = f'{BASE_URL}/v1/match/incidents'
@@ -282,44 +297,37 @@ def atualizar_partidas():
 
     headers = _get_headers()
 
-    partidas_por_id = {p.id_api: p for p in partidas}
-
-    cup_trees_data = _buscar_cup_trees(headers)
-
-    blocos_por_match_id = {}
-    if cup_trees_data:
-        trees = cup_trees_data if isinstance(cup_trees_data, list) else [cup_trees_data]
-        for tree in trees:
-            for rnd in tree.get('rounds', []):
-                for block in rnd.get('blocks', []):
-                    match_id = block.get('matchId')
-                    if match_id:
-                        blocos_por_match_id[match_id] = block
-
     partidas_atualizadas = []
     partidas_notificaveis = []
 
     for partida in partidas:
-        block = blocos_por_match_id.get(partida.id_api)
-
-        if not block:
-            logger.warning(f'Partida {partida.id_api} não encontrada nos dados do cup-trees.')
+        match_details = _buscar_detalhes_partida(partida.id_api, headers)
+        if not match_details:
+            logger.warning(f'Não foi possível obter detalhes para atualizar a partida {partida.id_api}.')
             continue
+
+        event_data = match_details.get('event') or match_details
 
         old_placar_1 = partida.placar_1
         old_placar_2 = partida.placar_2
         old_status = partida.status
 
-        partida.placar_1 = _parse_placar(block.get('homeTeamScore'))
-        partida.placar_2 = _parse_placar(block.get('awayTeamScore'))
+        home_score_data = event_data.get('homeScore')
+        away_score_data = event_data.get('awayScore')
+        
+        partida.placar_1 = home_score_data.get('current') if isinstance(home_score_data, dict) else None
+        partida.placar_2 = away_score_data.get('current') if isinstance(away_score_data, dict) else None
 
-        is_finished = block.get('finished', False)
-        if is_finished:
-            partida.status = Partida.Status.FINALIZADA
-            partida.tempo = 'Encerrado'
-        elif partida.placar_1 is not None and partida.placar_2 is not None:
-            if partida.status == Partida.Status.NAO_INICIADA and partida.data <= agora:
-                partida.status = Partida.Status.EM_ANDAMENTO
+        status_data = event_data.get('status')
+        status_type = status_data.get('type', '').lower() if isinstance(status_data, dict) else ''
+        status_desc = status_data.get('description', '') if isinstance(status_data, dict) else ''
+
+        partida.status = STATUS_MAP.get(status_type, partida.status)
+        partida.tempo = TEMPO_TRADUCAO.get(status_desc, status_desc)
+
+        timestamp = event_data.get('timestamp')
+        if timestamp:
+            partida.data = datetime.fromtimestamp(timestamp, tz=timezone.utc)
 
         if partida.status in (Partida.Status.EM_ANDAMENTO, Partida.Status.FINALIZADA):
             try:
@@ -340,7 +348,7 @@ def atualizar_partidas():
     if partidas_atualizadas:
         Partida.objects.bulk_update(
             partidas_atualizadas,
-            ['placar_1', 'placar_2', 'status', 'tempo']
+            ['placar_1', 'placar_2', 'status', 'tempo', 'data']
         )
         
         partidas_finalizadas = [p for p in partidas_atualizadas if p.status == Partida.Status.FINALIZADA]
@@ -399,40 +407,71 @@ def importar_partidas():
                     if not match_id:
                         continue
 
-                    participants = block.get('participants', [])
-                    if len(participants) < 2:
-                        logger.warning(
-                            f'Partida {match_id} com menos de 2 participantes, ignorando.'
-                        )
+                    match_details = _buscar_detalhes_partida(match_id, headers)
+                    if not match_details:
+                        logger.warning(f'Não foi possível obter detalhes para importar a partida {match_id}, pulando.')
                         continue
 
-                    name_1 = participants[0].get('team', {}).get('name', 'Desconhecido')
-                    name_2 = participants[1].get('team', {}).get('name', 'Desconhecido')
+                    event_data = match_details.get('event') or match_details
+
+                    timestamp = event_data.get('timestamp')
+                    if not timestamp:
+                        logger.warning(f'Partida {match_id} não possui timestamp nos detalhes, pulando.')
+                        continue
+
+                    data_partida = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+
+                    status_data = event_data.get('status')
+                    status_type = status_data.get('type', '').lower() if isinstance(status_data, dict) else ''
+                    status_desc = status_data.get('description', '') if isinstance(status_data, dict) else ''
+
+                    status = STATUS_MAP.get(status_type, Partida.Status.NAO_INICIADA)
+                    tempo = TEMPO_TRADUCAO.get(status_desc, status_desc)
+
+                    home_score_data = event_data.get('homeScore')
+                    away_score_data = event_data.get('awayScore')
+                    
+                    placar_1 = home_score_data.get('current') if isinstance(home_score_data, dict) else None
+                    placar_2 = away_score_data.get('current') if isinstance(away_score_data, dict) else None
+
+                    home_team_data = event_data.get('homeTeam')
+                    away_team_data = event_data.get('awayTeam')
+                    
+                    name_1 = home_team_data.get('name') or home_team_data.get('shortName') if isinstance(home_team_data, dict) else None
+                    name_2 = away_team_data.get('name') or away_team_data.get('shortName') if isinstance(away_team_data, dict) else None
+
+                    image_1 = home_team_data.get('imagePath') or home_team_data.get('proxyImagePath') if isinstance(home_team_data, dict) else None
+                    image_2 = away_team_data.get('imagePath') or away_team_data.get('proxyImagePath') if isinstance(away_team_data, dict) else None
+
+                    participants = block.get('participants', [])
+                    if len(participants) >= 2:
+                        team_1_data = participants[0].get('team', {})
+                        team_2_data = participants[1].get('team', {})
+                        name_1 = name_1 or team_1_data.get('name') or 'Desconhecido'
+                        name_2 = name_2 or team_2_data.get('name') or 'Desconhecido'
+                        if not image_1:
+                            image_1 = team_1_data.get('imagePath') or team_1_data.get('proxyImagePath')
+                        if not image_2:
+                            image_2 = team_2_data.get('imagePath') or team_2_data.get('proxyImagePath')
+                    else:
+                        name_1 = name_1 or 'Desconhecido'
+                        name_2 = name_2 or 'Desconhecido'
 
                     time_1 = _traduzir_time(name_1)
                     time_2 = _traduzir_time(name_2)
-
-                    is_finished = block.get('finished', False)
-                    placar_1 = _parse_placar(block.get('homeTeamScore'))
-                    placar_2 = _parse_placar(block.get('awayTeamScore'))
-
-                    status = Partida.Status.FINALIZADA if is_finished else Partida.Status.NAO_INICIADA
-                    tempo = 'Encerrado' if is_finished else None
-                    data_partida = dj_timezone.now()
 
                     partida_existente = Partida.objects.filter(id_api=match_id).first()
                     estatisticas_atuais = (
                         partida_existente.estatisticas_finais if partida_existente else None
                     )
 
-                    if partida_existente:
-                        data_partida = partida_existente.data
-
                     _, created = Partida.objects.update_or_create(
                         id_api=match_id,
                         defaults={
                             'time_1': time_1,
+                            'time_1_imagem': image_1,
                             'time_2': time_2,
+                            'time_2_imagem': image_2,
                             'placar_1': placar_1,
                             'placar_2': placar_2,
                             'data': data_partida,
@@ -461,7 +500,7 @@ def importar_partidas():
                         f'{"criada" if created else "atualizada"}'
                     )
 
-                except (KeyError, TypeError, ValueError) as e:
+                except Exception as e:
                     logger.warning(
                         f'Erro ao processar partida {block.get("matchId", "?")}: {e}'
                     )

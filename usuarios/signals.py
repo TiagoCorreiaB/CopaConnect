@@ -7,5 +7,5 @@ def usuario_post_save(sender, instance, created, **kwargs):
     if created:
         Perfil.objects.create(
             usuario=instance,
-            apelido=instance.first_name
+            apelido=instance.username
         )

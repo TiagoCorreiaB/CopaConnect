@@ -77,7 +77,7 @@ class BolaoModelViewSet(viewsets.ModelViewSet):
         bolao.usuarios.add(usuario)
         
         return Response(
-            {'detalhe': f'Usuário {usuario.first_name} adicionado com sucesso ao bolão!'},
+            {'detalhe': f'Usuário {usuario.username} adicionado com sucesso ao bolão!'},
             status=status.HTTP_200_OK
         )
     
@@ -109,7 +109,7 @@ class BolaoModelViewSet(viewsets.ModelViewSet):
         bolao.usuarios.remove(usuario)
 
         deleted_count, _ = Palpite.objects.filter(bolao=bolao, dono=usuario).delete()
-        msg = f'Usuário {usuario.first_name} removido.'
+        msg = f'Usuário {usuario.username} removido.'
         if deleted_count > 0:
             msg += ' O palpite dele foi apagado.'
         
