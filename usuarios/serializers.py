@@ -50,10 +50,11 @@ class UsuarioWriteModelSerializer(serializers.ModelSerializer):
 class UsuarioReadModelSerializer(serializers.ModelSerializer):
     usuario = serializers.ReadOnlyField(source='username')
     foto = serializers.SerializerMethodField()
+    apelido = serializers.SerializerMethodField()
 
     class Meta:
         model = Usuario
-        fields = ['id','usuario','foto']
+        fields = ['id','usuario','foto','apelido','online']
 
     def get_foto(self, obj):
         try:
@@ -62,6 +63,40 @@ class UsuarioReadModelSerializer(serializers.ModelSerializer):
         except Exception:
             pass
         return None
+
+    def get_apelido(self, obj):
+        try:
+            if obj.perfil and obj.perfil.apelido:
+                return obj.perfil.apelido
+        except Exception:
+            pass
+        return obj.username
+
+
+class UsuarioRetrieveModelSerializer(serializers.ModelSerializer):
+    usuario = serializers.ReadOnlyField(source='username')
+    foto = serializers.SerializerMethodField()
+    apelido = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Usuario
+        fields = ['id', 'usuario', 'foto', 'apelido', 'email', 'telefone', 'online']
+
+    def get_foto(self, obj):
+        try:
+            if obj.perfil and obj.perfil.foto:
+                return obj.perfil.foto.url
+        except Exception:
+            pass
+        return None
+
+    def get_apelido(self, obj):
+        try:
+            if obj.perfil and obj.perfil.apelido:
+                return obj.perfil.apelido
+        except Exception:
+            pass
+        return obj.username
 
 class PerfilWriteModelSerializer(serializers.ModelSerializer):
     class Meta:

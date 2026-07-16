@@ -7,7 +7,7 @@ from rest_framework.filters import SearchFilter
 from django.db.models import Q
 from django_filters import rest_framework as filters
 from .models import Usuario, Perfil, Amizade
-from .serializers import UsuarioReadModelSerializer, UsuarioWriteModelSerializer, PerfilReadModelSerializer, PerfilWriteModelSerializer, AmizadeReadModelSerializer, AmizadeWriteModelSerializer
+from .serializers import UsuarioReadModelSerializer, UsuarioWriteModelSerializer, UsuarioRetrieveModelSerializer, PerfilReadModelSerializer, PerfilWriteModelSerializer, AmizadeReadModelSerializer, AmizadeWriteModelSerializer
 
 class UsuarioModelViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
@@ -21,7 +21,9 @@ class UsuarioModelViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     def get_serializer_class(self):
-        if self.action in ['list', 'retrieve']:
+        if self.action == 'retrieve':
+            return UsuarioRetrieveModelSerializer
+        if self.action == 'list':
             return UsuarioReadModelSerializer
         
         return UsuarioWriteModelSerializer

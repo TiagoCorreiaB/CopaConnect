@@ -13,10 +13,8 @@ from chat.middleware import QueryParamAuthMiddleware
 application = ProtocolTypeRouter({
     "http": django_asgi_app,
     "websocket": QueryParamAuthMiddleware(
-        AuthMiddlewareStack(
-            URLRouter(
-                websocket_urlpatterns
-            )
+        URLRouter(
+            websocket_urlpatterns
         )
     ),
 })

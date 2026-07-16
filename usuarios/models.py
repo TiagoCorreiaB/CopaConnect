@@ -1,9 +1,12 @@
+
 from django.db import models, transaction
 from django.contrib.auth.models import AbstractUser
 
 class Usuario(AbstractUser):
     email = models.EmailField(unique=True)
     telefone = models.CharField(max_length=11, unique=True)
+    online = models.BooleanField(default=False)
+    ultima_atividade = models.DateTimeField(null=True, blank=True)
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username', 'telefone']
 
