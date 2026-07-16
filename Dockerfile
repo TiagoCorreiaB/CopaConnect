@@ -1,22 +1,19 @@
-FROM python:3.12-slim
+#!/bin/sh
 
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+echo "=== Executando Migrations ==="
+python manage.py migrate --noinput
 
-WORKDIR /app
+echo "=== Coletando arquivos estaticos ==="
+python manage.py collectstatic --noinput
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
+echo "=== Verificando superusuario ==="
+python cria_admin.py
 
-COPY requirements.txt /app/
-RUN pip install --no-cache-dir -r requirements.txt
+echo "=== Iniciando Celery Worker ==="
+celery -A core worker -l info --concurrency=1 &
 
-COPY . /app/
+echo "=== Iniciando Celery Beat ==="
+celery -A core beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler &
 
-RUN chmod +x /app/start.sh
-
-EXPOSE 8000
-
-CMD ["/app/start.sh"]
+echo "=== Iniciando Daphne Server ==="
+exec daphne -b 0.0.0.0 -p 8000 core.asgi:application
